@@ -103,8 +103,8 @@ None. No database exists yet (introduced in M0-02 / M0-03).
 
 ## Open Issues
 
-- Vercel's "Root Directory" setting still needs to be pointed at `web/` — deferred to M0-10 (Staging Deployment).
-- The git commit author identity was auto-derived from the local system username/hostname (`kalpanayadav@Kalpanas-MacBook-Air.local`) rather than explicitly configured. Low priority; not blocking.
+- ~~Vercel's "Root Directory" setting still needs to be pointed at `web/`~~ — resolved in M0-10.
+- ~~The git commit author identity was auto-derived from the local system username/hostname (`kalpanayadav@Kalpanas-MacBook-Air.local`) rather than explicitly configured.~~ Resolved in M0-10 — turned out not to be low priority after all: Vercel silently blocked every deployment over it (the commit author email didn't match anything on the connected GitHub account, which Vercel treats as a spoofing risk). Fixed by setting `git config user.name`/`user.email` to match the real GitHub-linked email.
 - Two moderate-severity `npm audit` advisories exist in the dependency tree as scaffolded by `create-next-app`. Not investigated or addressed in this task.
 
 ---
