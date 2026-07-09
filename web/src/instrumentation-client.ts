@@ -4,5 +4,7 @@ import * as Sentry from "@sentry/nextjs";
 // introduced v15.3 -- see node_modules/next/dist/docs/.../instrumentation-client.md).
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
-  environment: process.env.NODE_ENV,
+  // NEXT_PUBLIC_VERCEL_ENV is populated from next.config.ts's `env` block
+  // (see there for why NODE_ENV alone isn't enough here).
+  environment: process.env.NEXT_PUBLIC_VERCEL_ENV ?? process.env.NODE_ENV,
 });

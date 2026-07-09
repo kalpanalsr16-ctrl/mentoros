@@ -7,5 +7,8 @@ import * as Sentry from "@sentry/nextjs";
 // since it needs a Sentry auth token this milestone doesn't require.
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
-  environment: process.env.NODE_ENV,
+  // VERCEL_ENV distinguishes "production" from "preview" (staging);
+  // NODE_ENV alone can't, since it's "production" for any built app
+  // regardless of which Vercel environment it's deployed to.
+  environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV,
 });
