@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Home() {
   return (
     <main
@@ -16,6 +18,10 @@ export default function Home() {
       <p style={{ color: "var(--foreground)", opacity: 0.7 }}>
         Coming soon.
       </p>
+      <div style={{ display: "flex", gap: "1rem", marginTop: "1rem" }}>
+        <Link href="/sign-in">Sign in</Link>
+        <Link href="/sign-up">Sign up</Link>
+      </div>
     </main>
   );
 }
