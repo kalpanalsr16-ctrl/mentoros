@@ -1,11 +1,16 @@
 import { createClient } from "@/lib/supabase/server";
+import { generateTraceId, logEvent } from "@/lib/observability/trace";
 
 export async function POST(request: Request) {
+  const traceId = generateTraceId();
   const supabase = await createClient();
   const { data: claimsData } = await supabase.auth.getClaims();
 
   if (!claimsData?.claims) {
-    return Response.json({ error: "Not signed in." }, { status: 401 });
+    // No authenticated student to attach this event to, and the events
+    // table's RLS policy requires student_id = auth.uid() -- an
+    // unauthenticated attempt can't be logged there. Nothing to log.
+    return Response.json({ error: "Not signed in.", traceId }, { status: 401 });
   }
 
   const studentId = claimsData.claims.sub as string;
@@ -18,10 +23,18 @@ export async function POST(request: Request) {
 
   if (!content) {
     return Response.json(
-      { error: "Message content is required." },
+      { error: "Message content is required.", traceId },
       { status: 400 },
     );
   }
+
+  await logEvent(supabase, {
+    traceId,
+    eventName: "message_received",
+    studentId,
+    conversationId,
+    payload: { contentLength: content.length },
+  });
 
   let activeConversationId = conversationId;
 
@@ -33,8 +46,14 @@ export async function POST(request: Request) {
       .single();
 
     if (conversationError || !conversation) {
+      await logEvent(supabase, {
+        traceId,
+        eventName: "message_rejected",
+        studentId,
+        payload: { reason: "conversation_create_failed" },
+      });
       return Response.json(
-        { error: "Could not start a new conversation." },
+        { error: "Could not start a new conversation.", traceId },
         { status: 500 },
       );
     }
@@ -55,8 +74,15 @@ export async function POST(request: Request) {
   if (userMessageError || !userMessage) {
     // Most likely cause: activeConversationId doesn't belong to this
     // student, and Row Level Security silently rejected the insert.
+    await logEvent(supabase, {
+      traceId,
+      eventName: "message_rejected",
+      studentId,
+      conversationId: activeConversationId,
+      payload: { reason: "user_message_save_failed" },
+    });
     return Response.json(
-      { error: "Could not save your message." },
+      { error: "Could not save your message.", traceId },
       { status: 403 },
     );
   }
@@ -73,16 +99,38 @@ export async function POST(request: Request) {
       .single();
 
   if (assistantMessageError || !assistantMessage) {
+    await logEvent(supabase, {
+      traceId,
+      eventName: "reply_failed",
+      studentId,
+      conversationId: activeConversationId,
+      payload: {
+        reason: "assistant_message_save_failed",
+        userMessageId: userMessage.id,
+      },
+    });
     return Response.json(
-      { error: "Could not save the reply." },
+      { error: "Could not save the reply.", traceId },
       { status: 500 },
     );
   }
+
+  await logEvent(supabase, {
+    traceId,
+    eventName: "reply_sent",
+    studentId,
+    conversationId: activeConversationId,
+    payload: {
+      userMessageId: userMessage.id,
+      assistantMessageId: assistantMessage.id,
+    },
+  });
 
   return Response.json({
     conversationId: activeConversationId,
     userMessage,
     assistantMessage,
+    traceId,
   });
 }
 
