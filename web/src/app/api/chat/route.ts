@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { generateTraceId, logEvent } from "@/lib/observability/trace";
+import { checkMessageSafety, buildSafetyDeclineMessage } from "@/lib/safety/filter";
 
 export async function POST(request: Request) {
   const traceId = generateTraceId();
@@ -28,12 +29,16 @@ export async function POST(request: Request) {
     );
   }
 
+  const safetyCheck = checkMessageSafety(content);
+
   await logEvent(supabase, {
     traceId,
-    eventName: "message_received",
+    eventName: safetyCheck.safe ? "message_received" : "safety_blocked",
     studentId,
     conversationId,
-    payload: { contentLength: content.length },
+    payload: safetyCheck.safe
+      ? { contentLength: content.length }
+      : { category: safetyCheck.category, contentLength: content.length },
   });
 
   let activeConversationId = conversationId;
@@ -61,6 +66,11 @@ export async function POST(request: Request) {
     activeConversationId = conversation.id;
   }
 
+  // The unsafe message is still saved -- it's part of the real
+  // conversation history and needs to be reviewable (a parent or
+  // reviewer must be able to see what was said and how MentorOS
+  // responded), even though the reply it gets is a decline, not the
+  // usual placeholder.
   const { data: userMessage, error: userMessageError } = await supabase
     .from("messages")
     .insert({
@@ -87,13 +97,17 @@ export async function POST(request: Request) {
     );
   }
 
+  const replyContent = safetyCheck.safe
+    ? buildPlaceholderReply(content)
+    : buildSafetyDeclineMessage(safetyCheck.category);
+
   const { data: assistantMessage, error: assistantMessageError } =
     await supabase
       .from("messages")
       .insert({
         conversation_id: activeConversationId,
         role: "assistant",
-        content: buildPlaceholderReply(content),
+        content: replyContent,
       })
       .select("id, role, content")
       .single();
@@ -117,7 +131,7 @@ export async function POST(request: Request) {
 
   await logEvent(supabase, {
     traceId,
-    eventName: "reply_sent",
+    eventName: safetyCheck.safe ? "reply_sent" : "safety_reply_sent",
     studentId,
     conversationId: activeConversationId,
     payload: {
