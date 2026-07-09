@@ -4,16 +4,42 @@ import { useState } from "react";
 import { MessageList, type ChatMessage } from "./MessageList";
 import { MessageInput } from "./MessageInput";
 
-// Local state only — nothing here is persisted yet. Task M0-06 wires this
-// up to the database and a real (placeholder) reply from the server.
-export function ChatShell() {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+export function ChatShell({
+  initialConversationId,
+  initialMessages,
+}: {
+  initialConversationId: string | null;
+  initialMessages: ChatMessage[];
+}) {
+  const [conversationId, setConversationId] = useState(initialConversationId);
+  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function handleSend(content: string) {
-    setMessages((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), role: "user", content },
-    ]);
+  async function handleSend(content: string) {
+    setSending(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId, content }),
+      });
+
+      const body = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(body?.error ?? "Something went wrong. Please try again.");
+      }
+
+      setConversationId(body.conversationId);
+      setMessages((prev) => [...prev, body.userMessage, body.assistantMessage]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setSending(false);
+    }
   }
 
   return (
@@ -26,7 +52,19 @@ export function ChatShell() {
       }}
     >
       <MessageList messages={messages} />
-      <MessageInput onSend={handleSend} />
+      {error && (
+        <p
+          style={{
+            color: "#b3261e",
+            fontSize: "0.875rem",
+            padding: "0 1rem",
+            margin: "0 0 0.5rem",
+          }}
+        >
+          {error}
+        </p>
+      )}
+      <MessageInput onSend={handleSend} disabled={sending} />
     </div>
   );
 }

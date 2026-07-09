@@ -4,15 +4,17 @@ import { useState, type FormEvent } from "react";
 
 export function MessageInput({
   onSend,
+  disabled = false,
 }: {
   onSend: (content: string) => void;
+  disabled?: boolean;
 }) {
   const [value, setValue] = useState("");
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     const trimmed = value.trim();
-    if (!trimmed) return;
+    if (!trimmed || disabled) return;
     onSend(trimmed);
     setValue("");
   }
@@ -32,6 +34,7 @@ export function MessageInput({
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder="Ask a question..."
+        disabled={disabled}
         style={{
           flex: 1,
           minWidth: 0,
@@ -43,6 +46,7 @@ export function MessageInput({
       />
       <button
         type="submit"
+        disabled={disabled}
         style={{
           padding: "0.625rem 1.25rem",
           borderRadius: 8,
@@ -50,11 +54,12 @@ export function MessageInput({
           background: "#171717",
           color: "#fff",
           fontSize: "1rem",
-          cursor: "pointer",
+          cursor: disabled ? "default" : "pointer",
+          opacity: disabled ? 0.6 : 1,
           whiteSpace: "nowrap",
         }}
       >
-        Send
+        {disabled ? "Sending..." : "Send"}
       </button>
     </form>
   );
