@@ -44,15 +44,25 @@ export type LLMReplyResult =
  * M1 simplification -- see 08_Roadmap.md's M1 scope notes -- not a
  * technical ceiling; streaming is a documented fast-follow once this path
  * is proven.
+ *
+ * `planGuidance` (M3) is an optional short instruction derived from
+ * Planning Agent's LearningPlan (see lib/agents/planning-agent.ts), appended
+ * to the system prompt. This is how Planning's output becomes observable
+ * before a real Concept Agent (M6) exists to execute a structured
+ * multi-step teaching flow -- generateTeachingReply's own core (system
+ * prompt + history) is otherwise unchanged from M1.
  */
 export async function generateTeachingReply(
   history: ClaudeMessage[],
+  planGuidance?: string,
 ): Promise<LLMReplyResult> {
   try {
     const response = await anthropic.messages.create({
       model: MODEL,
       max_tokens: MAX_TOKENS,
-      system: SYSTEM_PROMPT,
+      system: planGuidance
+        ? `${SYSTEM_PROMPT}\n\nCurrent teaching guidance for this response: ${planGuidance}`
+        : SYSTEM_PROMPT,
       thinking: { type: "adaptive", display: "summarized" },
       messages: history,
     });

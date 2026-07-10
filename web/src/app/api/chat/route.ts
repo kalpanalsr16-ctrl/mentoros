@@ -5,6 +5,22 @@ import { buildConversationContext } from "@/lib/agents/context-agent";
 import { generateTeachingReply, classifyIntentWithClaude } from "@/lib/llm/client";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { classifyIntent } from "@/lib/agents/router-agent";
+import {
+  buildPlanningContext,
+  decidePlan,
+  describeLearningPlanForPrompt,
+} from "@/lib/agents/planning-agent";
+import { unknownLearnerStateProvider } from "@/lib/learner/unknown-learner-state-provider";
+import { createStaticCurriculumProvider } from "@/lib/knowledge/static-curriculum-provider";
+import { ncertClass3MathAdditionSubtractionDataset } from "@/lib/knowledge/datasets/ncert-class3-math-addition-subtraction";
+
+// Composition root: today's concrete KnowledgeProvider is a single static
+// dataset. Planning Agent itself never imports this -- swapping to M5's
+// real retrieval-backed implementation only changes this one wiring
+// point, per the M3 design agreement.
+const knowledgeProvider = createStaticCurriculumProvider(
+  ncertClass3MathAdditionSubtractionDataset,
+);
 
 export async function POST(request: Request) {
   const traceId = generateTraceId();
@@ -170,8 +186,50 @@ export async function POST(request: Request) {
       replyContent = routerResult.intent.clarificationQuestion!;
       llmMetadata = { isClarification: true };
     } else {
+      // Planning Agent (M3): only runs once Router has produced a
+      // non-clarification intent. Fails open into an unguided M1 reply on
+      // any error -- planning is an enhancement layered on top of M1's
+      // existing reply generation, not a new hard dependency.
+      let planGuidance: string | undefined;
+      if (routerResult.success) {
+        try {
+          const planningContext = await buildPlanningContext(
+            routerResult.intent,
+            studentId,
+            unknownLearnerStateProvider,
+            knowledgeProvider,
+          );
+          const plan = decidePlan(planningContext);
+          planGuidance = describeLearningPlanForPrompt(plan);
+
+          await logEvent(supabase, {
+            traceId,
+            eventName: "learning_plan_created",
+            studentId,
+            conversationId: activeConversationId,
+            payload: {
+              strategy: plan.strategy,
+              difficulty: plan.difficulty,
+              pace: plan.pace,
+              followUpRequired: plan.followUpRequired,
+              conceptResolved: planningContext.concept !== null,
+            },
+          });
+        } catch (err) {
+          await logEvent(supabase, {
+            traceId,
+            eventName: "planning_failed",
+            studentId,
+            conversationId: activeConversationId,
+            payload: {
+              reason: err instanceof Error ? err.message : "unknown_error",
+            },
+          });
+        }
+      }
+
       const llmStartedAt = Date.now();
-      const llmResult = await generateTeachingReply(history);
+      const llmResult = await generateTeachingReply(history, planGuidance);
       const llmLatencyMs = Date.now() - llmStartedAt;
 
       // Logged immediately, separate from the reply_sent/reply_failed events
