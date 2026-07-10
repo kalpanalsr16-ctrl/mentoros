@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { generateTraceId, logEvent } from "@/lib/observability/trace";
 import { checkMessageSafety, buildSafetyDeclineMessage } from "@/lib/safety/filter";
+import { buildConversationContext } from "@/lib/agents/context-agent";
+import { generateTeachingReply } from "@/lib/llm/client";
 
 export async function POST(request: Request) {
   const traceId = generateTraceId();
@@ -97,9 +99,53 @@ export async function POST(request: Request) {
     );
   }
 
-  const replyContent = safetyCheck.safe
-    ? buildPlaceholderReply(content)
-    : buildSafetyDeclineMessage(safetyCheck.category);
+  let replyContent: string;
+  let llmMetadata: Record<string, unknown> = {};
+
+  if (!safetyCheck.safe) {
+    // Unsafe messages never reach Claude at all -- M0-08's filter is the
+    // gate, not a pre-check the LLM could still be argued past. Zero
+    // Anthropic API calls for blocked content, by design.
+    replyContent = buildSafetyDeclineMessage(safetyCheck.category);
+  } else {
+    // Built after the user message above was saved, so the history the
+    // model sees naturally ends with the message the student just sent.
+    const history = await buildConversationContext(supabase, activeConversationId);
+
+    const llmStartedAt = Date.now();
+    const llmResult = await generateTeachingReply(history);
+    const llmLatencyMs = Date.now() - llmStartedAt;
+
+    // Logged immediately, separate from the reply_sent/reply_failed events
+    // below -- this is observability into the new external dependency
+    // itself (did Claude answer, how long did it take), not into whether
+    // the resulting text made it into the database.
+    await logEvent(supabase, {
+      traceId,
+      eventName: llmResult.success ? "llm_call_succeeded" : "llm_call_failed",
+      studentId,
+      conversationId: activeConversationId,
+      payload: llmResult.success
+        ? {
+            model: llmResult.model,
+            inputTokens: llmResult.inputTokens,
+            outputTokens: llmResult.outputTokens,
+            latencyMs: llmLatencyMs,
+          }
+        : { reason: llmResult.reason, latencyMs: llmLatencyMs },
+    });
+
+    if (llmResult.success) {
+      replyContent = llmResult.content;
+    } else {
+      // Honest, saved fallback -- mirrors the same principle M0-06 already
+      // applies to the placeholder reply and M0-08 applies to safety
+      // declines: even a bad outcome gets a real, persisted turn in the
+      // conversation, never a raw crash or a silently missing reply.
+      replyContent = buildLLMFailureReply();
+      llmMetadata = { isFallbackReply: true };
+    }
+  }
 
   const { data: assistantMessage, error: assistantMessageError } =
     await supabase
@@ -137,6 +183,7 @@ export async function POST(request: Request) {
     payload: {
       userMessageId: userMessage.id,
       assistantMessageId: assistantMessage.id,
+      ...llmMetadata,
     },
   });
 
@@ -148,10 +195,10 @@ export async function POST(request: Request) {
   });
 }
 
-// No real teaching intelligence exists yet (that begins in Milestone M1).
-// This placeholder exists purely to prove the full loop -- save, reply,
-// save, display -- works end to end. It is deliberately honest about
-// being a placeholder rather than pretending to be a real answer.
-function buildPlaceholderReply(studentMessage: string): string {
-  return `You said: "${studentMessage}"\n\nThis is a placeholder reply — MentorOS doesn't have real teaching intelligence yet. That begins in Milestone M1. This response confirms your message was saved and a reply was generated and saved back.`;
+// Shown when the Claude API call itself fails (rate limit, timeout,
+// outage) -- an honest, persisted turn rather than a raw crash or a
+// silently missing reply. See Task 5 notes in
+// docs/implementation/M1-04-Chat-Route-Integration.md.
+function buildLLMFailureReply(): string {
+  return "I'm having trouble responding right now. Please try sending your message again in a moment.";
 }

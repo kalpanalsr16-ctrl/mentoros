@@ -111,4 +111,4 @@ All test scripts were temporary and deleted after running — none committed.
 
 ## Next Task
 
-M1-04 — Wire into `/api/chat`
+[M1-04 — Chat Route Integration](M1-04-Chat-Route-Integration.md)
