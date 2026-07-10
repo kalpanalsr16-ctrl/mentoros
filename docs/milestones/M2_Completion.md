@@ -1,9 +1,11 @@
 # Milestone M2 — Completion Report
 
-**Status:** ✅ Closed (functionally complete; not yet deployed)
+**Status:** ✅ Closed and deployed to Production
 **Closed:** 2026-07-10
-**Tag:** `v0.3.0-m2` (local; push/deploy pending explicit decision, same as M0/M1's initial closure)
+**Tag:** `v0.3.0-m2` (pushed to `origin`)
 **Reviewer:** Lead Engineer gate review (this document)
+
+**Post-review update (same day):** `main` and the `v0.3.0-m2` tag were pushed to `origin` after explicit, specific authorization. Vercel built and deployed the new commit to Production automatically (git-connected); `/api/health` returned `200`/`database: connected` and an unauthenticated `/api/chat` request returned `401`, confirming the deployment shipped correctly. No new Vercel environment variables were required for M2. Preview/Staging was not pushed and remains on M1's build, same carried gap noted in Risks/Technical Debt below.
 
 ---
 
@@ -90,11 +92,12 @@ No new infrastructure. No new environment variables — `zod` is a code dependen
 
 ## Risks
 
-1. **M2's code is not deployed.** Same situation M1 was in before its own gate review triggered a push — Production currently runs M1's code (post-M1-gate-review deploy), and M2's commit is local-only pending an explicit decision, consistent with this project's push/deploy discipline.
-2. **Two Claude calls per answerable message** now live in the design permanently (classify, then reply) — a deliberate, agreed cost/latency trade-off, worth monitoring once real usage exists.
-3. **No curriculum/topic taxonomy exists** — becomes load-bearing once M3 (Planning Agent) needs the Curriculum Graph the roadmap already flags as missing, and again at M5 (Knowledge Retrieval).
-4. **The Router spec's <150ms latency target is not met and isn't realistically achievable** with the current LLM-based approach — documented as accepted, not solved.
-5. **`secondaryIntent` is detected and logged but never acted on** — correct for this milestone's scope, but worth remembering nothing downstream consumes it yet.
+1. **Preview/Staging is now two milestones stale relative to Production.** Production runs M2's code; Preview/Staging still runs M1's build (itself never caught up after M1's own deploy). Anyone testing against the Staging URL will see neither the Claude integration's latest state nor the Router Agent. Catching it up is a one-command fast-forward whenever wanted, but needs the same explicit go-ahead as any push in this project.
+2. **The real, authenticated, live-Production routing path has not been independently verified by this report** — `/api/health` and an unauthenticated `/api/chat` 401 confirm the deployment shipped correctly, but a genuine signed-in student triggering real classification on Production hasn't been checked (same credential constraints noted in M1-07).
+3. **Two Claude calls per answerable message** now live in the design permanently (classify, then reply) — a deliberate, agreed cost/latency trade-off, worth monitoring once real usage exists.
+4. **No curriculum/topic taxonomy exists** — becomes load-bearing once M3 (Planning Agent) needs the Curriculum Graph the roadmap already flags as missing, and again at M5 (Knowledge Retrieval).
+5. **The Router spec's <150ms latency target is not met and isn't realistically achievable** with the current LLM-based approach — documented as accepted, not solved.
+6. **`secondaryIntent` is detected and logged but never acted on** — correct for this milestone's scope, but worth remembering nothing downstream consumes it yet.
 
 ---
 
@@ -110,12 +113,12 @@ No new infrastructure. No new environment variables — `zod` is a code dependen
 
 | Item | Severity | Notes |
 |---|---|---|
-| M2 not deployed to Vercel | High | Same pattern as M1; needs an explicit push/deploy decision |
+| Preview/Staging two milestones behind Production | Medium | Deliberate, at product owner's direction; catch up via `git push origin main:staging` when wanted |
+| Live-Production authenticated routing path not independently verified | Low | Same credential constraints as M1-07; health + unauthenticated-401 confirmed the deploy shipped |
 | Two Claude calls per answerable message | Medium | Deliberate trade-off for clean separation; revisit if cost becomes a real constraint |
 | No curriculum/topic taxonomy document | Medium | Becomes load-bearing at M3 and M5 |
 | Router latency target (<150ms) not met | Low | Spec-vs-reality tension, documented as accepted |
 | `secondaryIntent` unused downstream | Low | By design this milestone |
-| *(carried from M1)* Preview/Staging still on M1's build once M2 deploys to Production | Medium | Same pattern as M1's own carried gap |
 | *(carried from M0/M1)* `07_Evaluation_Framework.md`, `10_Observability.md` empty | Medium | Still empty |
 | *(carried from M0/M1)* Client-side Sentry capture unverified | Low | Unchanged |
 | *(carried from M0/M1)* No region-specific crisis hotline | Low | Deliberate, pending region confirmation |
@@ -129,7 +132,7 @@ No new infrastructure. No new environment variables — `zod` is a code dependen
 |---|---|---|
 | 1 | Every M2 acceptance criterion met | ✅ All 10 criteria in M2-01 met, verified live and by unit test |
 | 2 | Application builds successfully | ✅ Clean `npm run build`, zero TypeScript errors (re-verified fresh) |
-| 3 | Deployment healthy | ⚠️ Not applicable yet — M2 code has not been pushed or deployed |
+| 3 | Deployment healthy | ✅ Production redeployed and verified (`/api/health` → `200`, `database: connected`; `/api/chat` → `401` unauthenticated). Preview/Staging intentionally left behind (product owner's direction) |
 | 4 | Supabase integration verified | ✅ Unchanged from M1; no new schema or query patterns introduced |
 | 5 | Sentry integration verified | ✅ Unchanged from M1; not independently re-exercised (no new deploy) |
 | 6 | Environment variables verified | ✅ No new environment variables required for M2 |
@@ -138,4 +141,4 @@ No new infrastructure. No new environment variables — `zod` is a code dependen
 | 9 | All decisions documented | ✅ Captured in M2-01 and summarized above |
 | 10 | No stray TODOs / incomplete work | ✅ No `TODO`/`FIXME`/`XXX` in source |
 
-**Verdict: M2 is functionally complete and closed at the code level.** Every acceptance criterion is met and verified — live for the classification call itself, by unit test for the threshold logic, and structurally for the unchanged safety guarantee. As with M1's initial closure, the one item this report does not resolve on its own is deployment — pushing and deploying M2 requires the same explicit, specific go-ahead this project has required for every prior push and every Vercel secret write.
+**Verdict: M2 is functionally complete, closed, and live on Production.** Every acceptance criterion is met and verified — live for the classification call itself, by unit test for the threshold logic, and structurally for the unchanged safety guarantee. `main` and `v0.3.0-m2` were pushed only after explicit, specific authorization, consistent with every prior push and Vercel secret write this project has required. Preview/Staging remains a one-command fast-forward away whenever the product owner wants it caught up.
