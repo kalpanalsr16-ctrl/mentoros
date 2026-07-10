@@ -2,8 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import { generateTraceId, logEvent } from "@/lib/observability/trace";
 import { checkMessageSafety, buildSafetyDeclineMessage } from "@/lib/safety/filter";
 import { buildConversationContext } from "@/lib/agents/context-agent";
-import { generateTeachingReply } from "@/lib/llm/client";
+import { generateTeachingReply, classifyIntentWithClaude } from "@/lib/llm/client";
 import { checkRateLimit } from "@/lib/security/rate-limit";
+import { classifyIntent } from "@/lib/agents/router-agent";
 
 export async function POST(request: Request) {
   const traceId = generateTraceId();
@@ -131,38 +132,77 @@ export async function POST(request: Request) {
     // model sees naturally ends with the message the student just sent.
     const history = await buildConversationContext(supabase, activeConversationId);
 
-    const llmStartedAt = Date.now();
-    const llmResult = await generateTeachingReply(history);
-    const llmLatencyMs = Date.now() - llmStartedAt;
+    // Router Agent (M2): intent analysis only -- it never generates a
+    // teaching reply itself. It decides whether this message needs
+    // clarification; when it doesn't, the existing M1 reply path below
+    // runs unchanged. A router failure fails open into that same M1 path
+    // rather than blocking the message, since routing is an enhancement
+    // layered on top of M1, not a new hard dependency of the chat route.
+    const routerResult = await classifyIntent(history, classifyIntentWithClaude);
 
-    // Logged immediately, separate from the reply_sent/reply_failed events
-    // below -- this is observability into the new external dependency
-    // itself (did Claude answer, how long did it take), not into whether
-    // the resulting text made it into the database.
-    await logEvent(supabase, {
-      traceId,
-      eventName: llmResult.success ? "llm_call_succeeded" : "llm_call_failed",
-      studentId,
-      conversationId: activeConversationId,
-      payload: llmResult.success
-        ? {
-            model: llmResult.model,
-            inputTokens: llmResult.inputTokens,
-            outputTokens: llmResult.outputTokens,
-            latencyMs: llmLatencyMs,
-          }
-        : { reason: llmResult.reason, latencyMs: llmLatencyMs },
-    });
-
-    if (llmResult.success) {
-      replyContent = llmResult.content;
+    if (routerResult.success) {
+      await logEvent(supabase, {
+        traceId,
+        eventName: "intent_detected",
+        studentId,
+        conversationId: activeConversationId,
+        payload: {
+          primaryIntent: routerResult.intent.primaryIntent,
+          secondaryIntent: routerResult.intent.secondaryIntent,
+          confidence: routerResult.intent.confidence,
+          topic: routerResult.intent.topic,
+          subtopic: routerResult.intent.subtopic,
+          clarificationRequired: routerResult.intent.needsClarification,
+          model: routerResult.model,
+        },
+      });
     } else {
-      // Honest, saved fallback -- mirrors the same principle M0-06 already
-      // applies to the placeholder reply and M0-08 applies to safety
-      // declines: even a bad outcome gets a real, persisted turn in the
-      // conversation, never a raw crash or a silently missing reply.
-      replyContent = buildLLMFailureReply();
-      llmMetadata = { isFallbackReply: true };
+      await logEvent(supabase, {
+        traceId,
+        eventName: "routing_failed",
+        studentId,
+        conversationId: activeConversationId,
+        payload: { reason: routerResult.reason },
+      });
+    }
+
+    if (routerResult.success && routerResult.intent.needsClarification) {
+      replyContent = routerResult.intent.clarificationQuestion!;
+      llmMetadata = { isClarification: true };
+    } else {
+      const llmStartedAt = Date.now();
+      const llmResult = await generateTeachingReply(history);
+      const llmLatencyMs = Date.now() - llmStartedAt;
+
+      // Logged immediately, separate from the reply_sent/reply_failed events
+      // below -- this is observability into the new external dependency
+      // itself (did Claude answer, how long did it take), not into whether
+      // the resulting text made it into the database.
+      await logEvent(supabase, {
+        traceId,
+        eventName: llmResult.success ? "llm_call_succeeded" : "llm_call_failed",
+        studentId,
+        conversationId: activeConversationId,
+        payload: llmResult.success
+          ? {
+              model: llmResult.model,
+              inputTokens: llmResult.inputTokens,
+              outputTokens: llmResult.outputTokens,
+              latencyMs: llmLatencyMs,
+            }
+          : { reason: llmResult.reason, latencyMs: llmLatencyMs },
+      });
+
+      if (llmResult.success) {
+        replyContent = llmResult.content;
+      } else {
+        // Honest, saved fallback -- mirrors the same principle M0-06 already
+        // applies to the placeholder reply and M0-08 applies to safety
+        // declines: even a bad outcome gets a real, persisted turn in the
+        // conversation, never a raw crash or a silently missing reply.
+        replyContent = buildLLMFailureReply();
+        llmMetadata = { isFallbackReply: true };
+      }
     }
   }
 

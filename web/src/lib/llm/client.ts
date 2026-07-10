@@ -1,4 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import { z } from "zod";
 import type { ClaudeMessage } from "@/lib/agents/context-agent";
 
 const anthropic = new Anthropic();
@@ -67,6 +69,99 @@ export async function generateTeachingReply(
       model: response.model,
       inputTokens: response.usage.input_tokens,
       outputTokens: response.usage.output_tokens,
+    };
+  } catch (err) {
+    if (err instanceof Anthropic.RateLimitError) {
+      return { success: false, reason: "rate_limited" };
+    }
+    if (err instanceof Anthropic.AuthenticationError) {
+      return { success: false, reason: "auth_error" };
+    }
+    if (err instanceof Anthropic.APIConnectionError) {
+      return { success: false, reason: "connection_error" };
+    }
+    if (err instanceof Anthropic.APIError) {
+      return { success: false, reason: `api_error_${err.status}` };
+    }
+    return { success: false, reason: "unknown_error" };
+  }
+}
+
+/**
+ * Grounded in 05_Agent_Architecture/04_Router_Agent.md's Purpose, Supported
+ * Intents, and Prompt Strategy sections. Reasons as "an expert conversation
+ * analyst" about what the learner wants, not how to teach it -- teaching
+ * itself stays entirely inside generateTeachingReply() above.
+ */
+const ROUTER_SYSTEM_PROMPT = `You are the Router Agent inside MentorOS, an AI tutor for Primary and High School students.
+
+Your only job is to classify what the learner wants -- you do not teach, answer questions, or generate any educational content.
+
+Classify the learner's most recent message into exactly one primary category, using the full conversation for context:
+- Learning: concept explanations, definitions, examples, "why" or "how" questions
+- Practice: requests for practice questions, more questions, harder or easier questions
+- Assessment: "test me", "quiz me", checking or evaluating an answer
+- Revision: revisiting a topic, reviewing a previous lesson, practicing weak concepts
+- Session: resuming learning, starting a new topic, continuing a lesson
+- Platform: help, feedback, settings -- anything about MentorOS itself rather than a math topic
+
+If the message clearly asks for two things (e.g. "explain fractions and then quiz me"), set a secondary category for the second request; otherwise leave it unset.
+
+Extract a topic and subtopic in plain language if the message names one (e.g. topic "Fractions", subtopic "Equivalent Fractions"); leave them unset if no specific topic is named.
+
+Set confidence between 0 and 1 reflecting how certain you are of the primary category. If the request is ambiguous (e.g. "I don't get this" with no clear referent), give it low confidence and propose a specific clarification question that would resolve the ambiguity (e.g. "Are you referring to equivalent fractions or adding fractions?"). Do not guess a category just to produce one.`;
+
+const RouterClassificationSchema = z.object({
+  primaryIntent: z.enum([
+    "Learning",
+    "Practice",
+    "Assessment",
+    "Revision",
+    "Session",
+    "Platform",
+  ]),
+  secondaryIntent: z
+    .enum(["Learning", "Practice", "Assessment", "Revision", "Session", "Platform"])
+    .nullable(),
+  confidence: z.number().min(0).max(1),
+  topic: z.string().nullable(),
+  subtopic: z.string().nullable(),
+  clarificationQuestion: z.string().nullable(),
+});
+
+export type RouterClassification = z.infer<typeof RouterClassificationSchema>;
+
+export type RouterClassificationResult =
+  | { success: true; classification: RouterClassification; model: string }
+  | { success: false; reason: string };
+
+/**
+ * Intent classification only -- never generates a teaching reply. Kept as
+ * its own call (not combined with generateTeachingReply) so the Router
+ * Agent's implementation can be swapped independently of how M1's reply
+ * generation works, per the M2 design decision to keep routing and
+ * teaching as separate, single-responsibility agents.
+ */
+export async function classifyIntentWithClaude(
+  history: ClaudeMessage[],
+): Promise<RouterClassificationResult> {
+  try {
+    const response = await anthropic.messages.parse({
+      model: MODEL,
+      max_tokens: MAX_TOKENS,
+      system: ROUTER_SYSTEM_PROMPT,
+      messages: history,
+      output_config: { format: zodOutputFormat(RouterClassificationSchema) },
+    });
+
+    if (!response.parsed_output) {
+      return { success: false, reason: "parse_failed" };
+    }
+
+    return {
+      success: true,
+      classification: response.parsed_output,
+      model: response.model,
     };
   } catch (err) {
     if (err instanceof Anthropic.RateLimitError) {
