@@ -1,9 +1,11 @@
 # Milestone M3 — Completion Report
 
-**Status:** ✅ Closed (functionally complete; not yet deployed)
+**Status:** ✅ Closed and deployed to Production
 **Closed:** 2026-07-11
-**Tag:** `v0.4.0-m3` (local; push/deploy pending explicit decision, same as M1/M2's initial closure)
+**Tag:** `v0.4.0-m3` (pushed to `origin`)
 **Reviewer:** Lead Engineer gate review (this document)
+
+**Post-review update (same day):** `main` and the `v0.4.0-m3` tag were pushed to `origin` after explicit authorization, carrying `09_Curriculum_Foundation.md` (`d4cd6a3`) along with it per the standing instruction to hold that commit until it could ship with M3. Vercel redeployed Production automatically; `/api/health` returned `200`/`database: connected` and an unauthenticated `/api/chat` request returned `401`. No new Vercel environment variables were required. Preview/Staging was not pushed and is now three milestones behind (still on M1).
 
 ---
 
@@ -91,12 +93,12 @@ No new infrastructure. No new environment variables. Not yet deployed — Produc
 
 ## Risks
 
-1. **M3's code is not deployed.** Production currently runs M2's code; M3's commits are local-only pending an explicit decision, consistent with this project's established push/deploy discipline.
-2. **Every real learner is currently `isKnown: false`.** The Diagnostic strategy will dominate in production until Assessment/Memory Agents (M7/M8) exist to write real mastery data — correct spec behavior, not a bug, but Planning can't be exercised against real mastery variety until much later.
-3. **`StaticCurriculumProvider` only covers one chapter.** Any topic outside "Addition and Subtraction" resolves to no concept and a Diagnostic plan, by design.
-4. **The NCERT dataset is an authored approximation**, not verbatim textbook content — flagged for curriculum-author review before being trusted as authoritative at scale.
-5. **`findConceptByTopic()` does simple exact-name matching**, not semantic search — a real limitation until M5's actual retrieval implementation replaces it.
-6. **`09_Curriculum_Foundation.md` (commit `d4cd6a3`) is held from push** per the product owner's explicit instruction (see persistent memory) until it can go with M3 — this report's push, when it happens, should include that commit too.
+1. **Preview/Staging is now three milestones behind Production** (still on M1's build). A one-command fast-forward whenever wanted, not done automatically.
+2. **The real, authenticated, live-Production planning path has not been independently verified by this report** — health and unauthenticated-401 checks confirm the deploy shipped; a genuine signed-in student triggering a real plan-guided reply on Production hasn't been checked (same credential constraints as M1-07).
+3. **Every real learner is currently `isKnown: false`.** The Diagnostic strategy will dominate in production until Assessment/Memory Agents (M7/M8) exist to write real mastery data — correct spec behavior, not a bug, but Planning can't be exercised against real mastery variety until much later.
+4. **`StaticCurriculumProvider` only covers one chapter.** Any topic outside "Addition and Subtraction" resolves to no concept and a Diagnostic plan, by design.
+5. **The NCERT dataset is an authored approximation**, not verbatim textbook content — flagged for curriculum-author review before being trusted as authoritative at scale.
+6. **`findConceptByTopic()` does simple exact-name matching**, not semantic search — a real limitation until M5's actual retrieval implementation replaces it.
 
 ---
 
@@ -112,7 +114,8 @@ No new infrastructure. No new environment variables. Not yet deployed — Produc
 
 | Item | Severity | Notes |
 |---|---|---|
-| M3 not deployed to Vercel | High | Same pattern as M1/M2; needs an explicit push/deploy decision |
+| Preview/Staging three milestones behind Production | Medium | Deliberate, at product owner's direction; catch up via `git push origin main:staging` when wanted |
+| Live-Production authenticated planning path not independently verified | Low | Same credential constraints as M1-07; health + unauthenticated-401 confirmed the deploy shipped |
 | Every learner reports unknown | Medium | Correct until M7/M8 exist; Diagnostic strategy will dominate real usage until then |
 | Curriculum dataset covers one chapter only | Medium | By design; more chapters/subjects are additive later work |
 | NCERT dataset needs curriculum-author review | Medium | Authored approximation, not verbatim textbook content |
@@ -133,7 +136,7 @@ No new infrastructure. No new environment variables. Not yet deployed — Produc
 |---|---|---|
 | 1 | Every M3 acceptance criterion met | ✅ All 9 criteria in M3-01 met, verified live, by unit test, and by structural check |
 | 2 | Application builds successfully | ✅ Clean `npm run build`, zero TypeScript errors (re-verified fresh) |
-| 3 | Deployment healthy | ⚠️ Not applicable yet — M3 code has not been pushed or deployed |
+| 3 | Deployment healthy | ✅ Production redeployed and verified (`/api/health` → `200`, `database: connected`; `/api/chat` → `401` unauthenticated). Preview/Staging intentionally left behind (product owner's direction) |
 | 4 | Supabase integration verified | ✅ Unchanged from M2; no new schema or query patterns introduced |
 | 5 | Sentry integration verified | ✅ Unchanged; not independently re-exercised (no new deploy) |
 | 6 | Environment variables verified | ✅ No new environment variables required for M3 |
@@ -142,4 +145,4 @@ No new infrastructure. No new environment variables. Not yet deployed — Produc
 | 9 | All decisions documented | ✅ Captured in M3-01 and summarized above |
 | 10 | No stray TODOs / incomplete work | ✅ No `TODO`/`FIXME`/`XXX` in source |
 
-**Verdict: M3 is functionally complete and closed at the code level.** Every acceptance criterion is met and verified — live for the plan-guidance behavioral change, by unit test for the decision logic and curriculum provider, and structurally for the unchanged safety guarantee. As with M1 and M2's initial closure, deployment is the one item this report does not resolve on its own — pushing M3 (and, per standing instruction, `09_Curriculum_Foundation.md` alongside it) requires the same explicit, specific go-ahead this project has required for every prior push.
+**Verdict: M3 is functionally complete, closed, and live on Production** — along with `09_Curriculum_Foundation.md`, shipped together per the standing hold instruction. Every acceptance criterion is met and verified — live for the plan-guidance behavioral change, by unit test for the decision logic and curriculum provider, and structurally for the unchanged safety guarantee. Preview/Staging remains a one-command fast-forward away whenever wanted.
