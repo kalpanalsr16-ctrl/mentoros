@@ -1,36 +1,46 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MentorOS — Web App
+
+The Next.js application for MentorOS, an AI-native tutoring platform for Primary and High School students. This is the single codebase serving both the student-facing frontend and the server-side API/agent logic (see [06_Technical_Architecture.md](../06_Technical_Architecture.md), Decision 1).
+
+For product context, architecture decisions, and per-task build records, start at the repository root — this file only covers running the app itself.
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Requires a `.env.local` file — copy `.env.local.example` and fill in real Supabase and Sentry values (see the comments in that file for where to find each one).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Stack
 
-## Learn More
+- Next.js 16 (App Router, Turbopack, TypeScript, `src/` layout)
+- Supabase (Postgres + Auth), accessed via `@supabase/ssr`
+- Sentry for error monitoring
 
-To learn more about Next.js, take a look at the following resources:
+**This Next.js version has real breaking changes from what training data alone would assume** (e.g. `middleware.ts` → `proxy.ts`). See [AGENTS.md](./AGENTS.md) and `node_modules/next/dist/docs/` before making framework-level changes.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Structure
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `src/app/` — routes (`/`, `/sign-up`, `/sign-in`, `/chat`, `/api/health`, `/api/chat`)
+- `src/components/` — UI components
+- `src/lib/supabase/` — browser/server Supabase clients, session proxy
+- `src/lib/safety/` — baseline safety filter
+- `src/lib/observability/` — trace ID + event logging
+- `supabase/migrations/` — committed SQL migrations (source of truth for schema)
 
-## Deploy on Vercel
+## Useful Commands
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm run build   # production build, also runs the TypeScript check
+npm run lint
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Documentation
+
+- [../docs/implementation/](../docs/implementation/) — what was actually built, task by task
+- [../docs/milestones/](../docs/milestones/) — milestone completion reports
+- [../06_Technical_Architecture.md](../06_Technical_Architecture.md) — stack decisions and rationale
