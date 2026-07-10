@@ -108,4 +108,4 @@ One real bug was caught and fixed during this process — in the mock, not the s
 
 ## Next Task
 
-M1-03 — Claude API Wrapper
+[M1-03 — Claude API Wrapper](M1-03-Claude-API-Wrapper.md)

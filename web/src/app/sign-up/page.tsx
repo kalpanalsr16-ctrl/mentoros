@@ -32,7 +32,10 @@ export default function SignUpPage() {
     }
 
     if (data.session) {
-      // Email confirmation is off for this project — already signed in.
+      // Supabase returns a session immediately when email confirmation is
+      // disabled for the project. Confirmed during M1-07 that this
+      // project currently has confirmation ON, so this branch is a
+      // fallback for that setting being turned off, not the default path.
       router.push("/chat");
       router.refresh();
       return;
