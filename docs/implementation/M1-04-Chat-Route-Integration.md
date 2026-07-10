@@ -103,4 +103,4 @@ None (the existing `ChatShell` already renders whatever `assistantMessage.conten
 
 ## Next Task
 
-M1-05 — Per-student rate limiting on `/api/chat` (renumbered from the original M1 plan's Task 7)
+[M1-05 — Rate Limiting](M1-05-Rate-Limiting.md)

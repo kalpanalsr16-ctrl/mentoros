@@ -3,6 +3,7 @@ import { generateTraceId, logEvent } from "@/lib/observability/trace";
 import { checkMessageSafety, buildSafetyDeclineMessage } from "@/lib/safety/filter";
 import { buildConversationContext } from "@/lib/agents/context-agent";
 import { generateTeachingReply } from "@/lib/llm/client";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 
 export async function POST(request: Request) {
   const traceId = generateTraceId();
@@ -17,6 +18,24 @@ export async function POST(request: Request) {
   }
 
   const studentId = claimsData.claims.sub as string;
+
+  // Checked before any other work -- every message now costs a real
+  // Claude API call (M1-04), so a student over the limit shouldn't pay
+  // for a safety check, a conversation lookup, or a message insert on a
+  // request that's about to be rejected anyway.
+  const rateLimitResult = await checkRateLimit(supabase);
+  if (rateLimitResult.limited) {
+    await logEvent(supabase, {
+      traceId,
+      eventName: "rate_limited",
+      studentId,
+      payload: { count: rateLimitResult.count },
+    });
+    return Response.json(
+      { error: "You're sending messages too quickly. Please wait a moment and try again.", traceId },
+      { status: 429 },
+    );
+  }
 
   const body = await request.json().catch(() => null);
   const content =
