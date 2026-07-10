@@ -30,7 +30,7 @@ Requires a `.env.local` file — copy `.env.local.example` and fill in real Supa
 - `src/components/` — UI components
 - `src/lib/supabase/` — browser/server Supabase clients, session proxy
 - `src/lib/safety/` — baseline safety filter (pattern-matching, pre-LLM gate)
-- `src/lib/agents/` — Context Agent, Router Agent (`intent-object.ts` contract), and Planning Agent (`planning-context.ts` contract, teaching-strategy decision logic)
+- `src/lib/agents/` — Context Agent, Router Agent (`intent-object.ts` contract), Planning Agent (`planning-context.ts` contract, teaching-strategy decision logic), and Personalization Agent (`personalization-context.ts` contract, teaching style/pace/difficulty decision logic)
 - `src/lib/knowledge/` — `KnowledgeProvider` interface + a static, in-code curriculum dataset (first implementation; storage-agnostic, Postgres-backed retrieval arrives in M5)
 - `src/lib/learner/` — `LearnerStateProvider` interface + an always-"unknown" first implementation (real mastery persistence arrives in M8)
 - `src/lib/llm/` — Claude API wrapper (`generateTeachingReply`, `classifyIntentWithClaude`)
