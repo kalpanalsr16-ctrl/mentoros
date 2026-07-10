@@ -1,9 +1,11 @@
 # Milestone M1 — Completion Report
 
-**Status:** ✅ Closed (functionally complete; not yet deployed — see Risks)
+**Status:** ✅ Closed and deployed to Production
 **Closed:** 2026-07-10
-**Tag:** `v0.2.0-m1` (local; not yet pushed to `origin`, same as `v0.1.0-m0`)
+**Tag:** `v0.2.0-m1` (pushed to `origin`)
 **Reviewer:** Lead Engineer gate review (this document)
+
+**Post-review update (same day):** `main` and the `v0.2.0-m1` tag were pushed to `origin`, `ANTHROPIC_API_KEY` was added to Vercel's Production and Preview environment variables, and a fresh Production deployment went live and was verified (`/api/health` → `200`, `database: connected`; `/api/chat` → `401` for an unauthenticated request, confirming the new route shipped correctly). `staging`/Preview was deliberately left un-pushed at the product owner's direction ("Production alone is enough for now") — Preview still serves M0's build. This resolves Risk 1 and Final Acceptance Checklist item 3 below for Production; the Preview gap is now the tracked remainder, not the whole deployment gap.
 
 ---
 
@@ -30,7 +32,7 @@ All 8 tasks, committed individually (some combined per documented scope decision
 | 9 (renumbered M1-07) | Manual end-to-end verification | `527ee48` | [M1-07](../implementation/M1-07-Manual-End-to-End-Verification.md) |
 | 10 (renumbered M1-08) | Documentation consistency pass | `527ee48` | [M1-08](../implementation/M1-08-Documentation-Consistency.md) |
 
-Working tree is clean. All 6 M1 commits (plus the roadmap reconstruction) exist only on local `main` — **8 commits ahead of `origin/main`, not yet pushed** (see Risks).
+Working tree is clean. All 6 M1 commits (plus the roadmap reconstruction) and the `v0.2.0-m1` tag have been pushed to `origin/main` and are live in Production (see Post-review update above). `staging` was deliberately left un-pushed at the product owner's direction.
 
 ---
 
@@ -57,7 +59,7 @@ None. M1 reused the existing `messages`, `conversations`, and `events` schema fr
 ## Infrastructure
 
 - **No new infrastructure** — M1 deliberately avoided adding Redis or any external rate-limiting service (M1-05), and reused the existing Supabase project rather than provisioning anything new.
-- **Not yet deployed.** Unlike M0, which was pushed and verified live on both Production and Staging, all M1 work exists only on the local `main` branch (8 commits ahead of `origin/main`). Vercel's currently deployed Production and Staging environments are still running **M0's code** — the placeholder reply, not the real Claude integration. This is the primary open item coming out of this report (see Risks).
+- **Deployed to Production, not yet to Staging.** `main` was pushed and Vercel built and deployed it after `ANTHROPIC_API_KEY` was added to Production's environment variables; `/api/health` and an unauthenticated `/api/chat` request were both verified live against the new deployment. Preview/Staging was deliberately left on M0's build at the product owner's direction ("Production alone is enough for now") — not an oversight, a scoping decision.
 - **Live verification during M1 happened against the local dev server plus the real, hosted Supabase project** (not local Supabase), since that project already had the confirmed working `ANTHROPIC_API_KEY` and existing schema.
 
 ---
@@ -101,12 +103,13 @@ None. M1 reused the existing `messages`, `conversations`, and `events` schema fr
 
 ## Risks
 
-1. **M1's code is not deployed.** Production and Staging on Vercel are still serving M0's placeholder-reply build. Every "live verification" claim in this report is against the local dev server plus the real hosted Supabase project, not against a deployed environment. Pushing and deploying M1 is a visible, shared-state action this report deliberately does not take on its own — it needs an explicit go-ahead, same as any push in this project.
-2. **The LLM-failure fallback path has never been exercised against a real live request** — only via build/type checks and static code reading. Low risk given how simple the branch is, but it is a real, named gap, not a silent assumption.
-3. **The Supabase project's email-confirmation setting drifted from what the codebase's own comments claimed**, undetected until M1-07 actively investigated it. No other comments in the codebase are known to make similar claims about external configuration, but none were specifically re-audited for this either — a general awareness item, not a known second instance.
-4. **No client-side UX exists for a `429` rate-limit response** — a student who's rate-limited currently sees whatever the raw fetch failure looks like in the existing chat UI, not a designed "slow down" message.
-5. **The 10-messages/60-seconds rate limit threshold is a placeholder judgment call**, not derived from real usage data — there is none yet.
-6. **Every message now costs real money** via the Claude API call, with only the basic per-student rate limit as a cost guard — there is no org-wide or global spend cap or alerting yet.
+1. **Preview/Staging is now stale relative to Production.** Production runs M1's code; Preview/Staging still runs M0's placeholder-reply build, left that way at the product owner's explicit direction. Anyone testing against the Staging URL will see the old behavior — worth remembering before treating a Staging check as representative of what's actually live on Production. Pushing `staging` to catch it up requires the same kind of explicit go-ahead that was required for each of the actions in this deploy (adding the Vercel secret, pushing `main`) — none of it was done unilaterally.
+2. **The real, authenticated, live-Production chat path (a genuine signed-in student sending a real message) has not been independently verified by this report** — `/api/health` and an unauthenticated `/api/chat` 401 confirm the deployment shipped correctly, but the same credential constraints from M1-07 apply here too. Worth a quick manual check by the product owner against the live Production URL when convenient.
+3. **The LLM-failure fallback path has never been exercised against a real live request** — only via build/type checks and static code reading. Low risk given how simple the branch is, but it is a real, named gap, not a silent assumption.
+4. **The Supabase project's email-confirmation setting drifted from what the codebase's own comments claimed**, undetected until M1-07 actively investigated it. No other comments in the codebase are known to make similar claims about external configuration, but none were specifically re-audited for this either — a general awareness item, not a known second instance.
+5. **No client-side UX exists for a `429` rate-limit response** — a student who's rate-limited currently sees whatever the raw fetch failure looks like in the existing chat UI, not a designed "slow down" message.
+6. **The 10-messages/60-seconds rate limit threshold is a placeholder judgment call**, not derived from real usage data — there is none yet.
+7. **Every message now costs real money** via the Claude API call, with only the basic per-student rate limit as a cost guard — there is no org-wide or global spend cap or alerting yet.
 
 ---
 
@@ -123,7 +126,8 @@ None. M1 reused the existing `messages`, `conversations`, and `events` schema fr
 
 | Item | Severity | Notes |
 |---|---|---|
-| M1 not deployed to Vercel (Production/Staging still on M0) | High | Blocks any real-world use of the Claude integration; needs an explicit push/deploy decision |
+| Preview/Staging still on M0's build (Production is on M1) | Medium | Deliberate, at product owner's direction; catch up when convenient via `git push origin main:staging` |
+| Live-Production authenticated chat path not independently verified | Low | `/api/health` and unauthenticated `/api/chat` 401 confirmed the deploy; a real signed-in message hasn't been checked live on Production yet |
 | LLM-failure fallback unverified live | Low | Code path is simple and covered by build + static checks; real-request verification still pending |
 | No client-side UX for `429` | Low | Basic guard works; UX polish deferred |
 | Rate limit threshold (10/60s) not data-derived | Low | Placeholder judgment call, easy to tune later |
@@ -143,7 +147,7 @@ None. M1 reused the existing `messages`, `conversations`, and `events` schema fr
 |---|---|---|
 | 1 | Every M1 acceptance criterion met | ✅ All M1-01–M1-06, M1-08 criteria fully met; M1-07 met 4 of 5 (LLM-failure simulation explicitly open, not silently dropped) |
 | 2 | Application builds successfully | ✅ Clean `npm run build`, zero TypeScript errors (re-verified fresh for this report) |
-| 3 | Deployment healthy | ⚠️ Not applicable yet — M1 code has not been pushed or deployed; currently-live Production/Staging still run M0's build |
+| 3 | Deployment healthy | ✅ Production redeployed and verified (`/api/health` → `200`, `database: connected`; `/api/chat` → `401` unauthenticated). Preview/Staging intentionally left on M0's build (product owner's direction) |
 | 4 | Supabase integration verified | ✅ Real hosted project used throughout; RLS-scoped rate-limit query verified against actual filter calls, not just results |
 | 5 | Sentry integration verified | ✅ Unchanged from M0's verified state; not independently re-exercised live in M1 (no new deploy occurred) |
 | 6 | Environment variables verified | ✅ `ANTHROPIC_API_KEY` added correctly, server-only, gitignored; `.env.local.example` accurate and committed; never printed, logged, or committed |
@@ -152,4 +156,4 @@ None. M1 reused the existing `messages`, `conversations`, and `events` schema fr
 | 9 | All decisions documented | ✅ Captured in each task's implementation doc and summarized above |
 | 10 | No stray TODOs / incomplete work | ✅ No `TODO`/`FIXME`/`XXX` in source; all open items explicitly logged as Technical Debt |
 
-**Verdict: M1 is functionally complete and closed at the code level.** Every product-facing acceptance criterion is met and verified — live, where a live path was reachable, and by build/static verification where it wasn't (explicitly named, not glossed over). The one item this report does **not** resolve on its own is deployment: M1's commits are local-only, and pushing/deploying is a shared-state action requiring an explicit decision before M2 planning treats "M1 is live" as true.
+**Verdict: M1 is functionally complete, closed, and live on Production.** Every product-facing acceptance criterion is met and verified — live, where a live path was reachable, and by build/static verification where it wasn't (explicitly named, not glossed over). Every action with real-world side effects in this closure (adding the Anthropic key to Vercel, pushing `main`, pushing the tag) was taken only after explicit, specific authorization — none was assumed from an earlier general "yes." Preview/Staging remains one commit-push away from catching up whenever the product owner wants it to.
