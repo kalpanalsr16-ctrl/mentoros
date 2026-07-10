@@ -19,7 +19,7 @@ Requires a `.env.local` file — copy `.env.local.example` and fill in real Supa
 
 - Next.js 16 (App Router, Turbopack, TypeScript, `src/` layout)
 - Supabase (Postgres + Auth), accessed via `@supabase/ssr`
-- Anthropic Claude (`@anthropic-ai/sdk`) for real teaching replies
+- Anthropic Claude (`@anthropic-ai/sdk`) for teaching replies and Zod-validated structured-output intent classification (`zod`)
 - Sentry for error monitoring
 
 **This Next.js version has real breaking changes from what training data alone would assume** (e.g. `middleware.ts` → `proxy.ts`). See [AGENTS.md](./AGENTS.md) and `node_modules/next/dist/docs/` before making framework-level changes.
@@ -30,8 +30,8 @@ Requires a `.env.local` file — copy `.env.local.example` and fill in real Supa
 - `src/components/` — UI components
 - `src/lib/supabase/` — browser/server Supabase clients, session proxy
 - `src/lib/safety/` — baseline safety filter (pattern-matching, pre-LLM gate)
-- `src/lib/agents/` — Context Agent: assembles conversation history for the LLM
-- `src/lib/llm/` — Claude API wrapper (`generateTeachingReply`)
+- `src/lib/agents/` — Context Agent (conversation history assembly) and Router Agent (intent classification, `intent-object.ts` contract)
+- `src/lib/llm/` — Claude API wrapper (`generateTeachingReply`, `classifyIntentWithClaude`)
 - `src/lib/security/` — per-student rate limiting on `/api/chat`
 - `src/lib/observability/` — trace ID + event logging
 - `supabase/migrations/` — committed SQL migrations (source of truth for schema)
