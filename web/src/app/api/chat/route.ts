@@ -11,20 +11,22 @@ import {
   describePersonalizationForPrompt,
 } from "@/lib/agents/personalization-agent";
 import { unknownLearnerStateProvider } from "@/lib/learner/unknown-learner-state-provider";
-import { createStaticCurriculumProvider } from "@/lib/knowledge/static-curriculum-provider";
-import { ncertClass3MathAdditionSubtractionDataset } from "@/lib/knowledge/datasets/ncert-class3-math-addition-subtraction";
-
-// Composition root: today's concrete KnowledgeProvider is a single static
-// dataset. Planning Agent itself never imports this -- swapping to M5's
-// real retrieval-backed implementation only changes this one wiring
-// point, per the M3 design agreement.
-const knowledgeProvider = createStaticCurriculumProvider(
-  ncertClass3MathAdditionSubtractionDataset,
-);
+import { createPostgresKnowledgeProvider } from "@/lib/knowledge/postgres-knowledge-provider";
+import { createTrigramConceptSearchProvider } from "@/lib/knowledge/trigram-concept-search-provider";
 
 export async function POST(request: Request) {
   const traceId = generateTraceId();
   const supabase = await createClient();
+
+  // Composition root: today's concrete KnowledgeProvider/ConceptSearchProvider
+  // are Postgres-backed (M5A/M5B), constructed per-request since they need
+  // this request's RLS-scoped client. Planning Agent itself never imports
+  // either concrete implementation -- swapping to a future real-semantic
+  // search provider, or a caching KnowledgeProvider, only changes this one
+  // wiring point, per the M3/M5 design agreements.
+  const knowledgeProvider = createPostgresKnowledgeProvider(supabase);
+  const conceptSearchProvider = createTrigramConceptSearchProvider(supabase);
+
   const { data: claimsData } = await supabase.auth.getClaims();
 
   if (!claimsData?.claims) {
@@ -203,6 +205,7 @@ export async function POST(request: Request) {
             studentId,
             unknownLearnerStateProvider,
             knowledgeProvider,
+            conceptSearchProvider,
           );
           const plan = decidePlan(planningContext);
 

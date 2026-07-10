@@ -2,6 +2,7 @@ import type { IntentObject } from "@/lib/agents/intent-object";
 import type { PlanningContext } from "@/lib/agents/planning-context";
 import type { LearnerStateProvider } from "@/lib/learner/learner-state-provider";
 import type { KnowledgeProvider } from "@/lib/knowledge/knowledge-provider";
+import type { ConceptSearchProvider } from "@/lib/knowledge/concept-search-provider";
 
 /**
  * Below this, a concept the learner has attempted before is still treated
@@ -27,22 +28,27 @@ export type LearningPlan = {
 
 /**
  * Assembles the standard Planning input contract. Planning Agent depends
- * only on the LearnerStateProvider/KnowledgeProvider interfaces passed
- * in -- never imports a concrete implementation itself -- so swapping
- * either provider (e.g. M5's real retrieval, M8's real mastery data)
- * never requires a change here.
+ * only on the LearnerStateProvider/KnowledgeProvider/ConceptSearchProvider
+ * interfaces passed in -- never imports a concrete implementation itself
+ * -- so swapping any of them (M5's real retrieval and search, M8's real
+ * mastery data) never requires a change here. Search (resolving a topic
+ * to a concept ID) and storage (reading a concept's details by ID) are
+ * deliberately separate calls, per the M5 design agreement, so search
+ * can evolve independently of how curriculum knowledge is stored.
  */
 export async function buildPlanningContext(
   intent: IntentObject,
   studentId: string,
   learnerStateProvider: LearnerStateProvider,
   knowledgeProvider: KnowledgeProvider,
+  conceptSearchProvider: ConceptSearchProvider,
 ): Promise<PlanningContext> {
   const learnerState = await learnerStateProvider.getLearnerState(studentId);
-  const concept = await knowledgeProvider.findConceptByTopic(
+  const conceptId = await conceptSearchProvider.findConceptIdByTopic(
     intent.topic,
     intent.subtopic,
   );
+  const concept = conceptId ? await knowledgeProvider.getConcept(conceptId) : null;
 
   const [learningObjectives, misconceptions, teachingStrategies] = concept
     ? await Promise.all([

@@ -46,7 +46,9 @@ Grade/reading-level/pace/style-aware adaptation of the Planning Agent's output. 
 
 ## M5 — Knowledge Retrieval Agent
 
-Real retrieval of curriculum content, examples, and definitions from the vector database named in [06_Technical_Architecture.md](06_Technical_Architecture.md), replacing any knowledge implicitly hardcoded in earlier milestones. Depends on Planning (M3), Personalization (M4), Router (M2), and Context (M1) — the last agent in the Understanding→Planning chain before real teaching content enters the picture.
+Real retrieval of curriculum content, replacing M3's static in-code dataset. Depends on Planning (M3), Personalization (M4), Router (M2), and Context (M1).
+
+Split into two phases once the actual scale was assessed: **M5A** migrated the Curriculum Foundation model ([09_Curriculum_Foundation.md](09_Curriculum_Foundation.md)) into real Postgres tables (`PostgresKnowledgeProvider`), replacing M3's static dataset with no interface change. **M5B** introduced a separate `ConceptSearchProvider` abstraction and improved topic resolution using Postgres trigram search (`TrigramConceptSearchProvider`) — a real improvement over M3's exact-name matching, but deliberately *not* the vector/embedding-based semantic retrieval this entry originally envisioned. That decision was revisited: introducing an embedding provider wasn't justified by MentorOS's current curriculum scale (one chapter), and `06_Technical_Architecture.md` never actually specified which embedding model would back it. Both gaps are logged as real, open items — not silently resolved — revisit once curriculum scale (more subjects/grades/chapters) makes trigram search's limits a real, felt problem rather than a theoretical one.
 
 ---
 
