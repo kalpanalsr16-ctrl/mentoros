@@ -111,4 +111,4 @@ Also re-ran the same dev-server smoke test used in M1-04 (unauthenticated reques
 
 ## Next Task
 
-M1-06 — Safety filter regression test against the new LLM path (renumbered from the original M1 plan's Task 8)
+[M1-06 — Safety Filter Regression Test](M1-06-Safety-Regression.md)
