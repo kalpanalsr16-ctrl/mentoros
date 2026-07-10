@@ -55,6 +55,7 @@ docs/
 - Event Driven Architecture
 - Evaluation Framework
 - Roadmap
+- Curriculum Foundation
 
 ---
 

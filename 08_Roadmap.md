@@ -34,7 +34,7 @@ Intent classification: distinguishes "explain this," "give me practice," "test m
 
 ## M3 — Planning Agent
 
-Learning plan / teaching strategy selection, reading the Learner Profile and Learning State established in M0's schema. Depends on Router Agent (M2). Requires a Curriculum Graph, which — like this roadmap was — does not yet exist as a document; flagged as a prerequisite to actually start this milestone, not assumed.
+Learning plan / teaching strategy selection, reading the Learner Profile and Learning State established in M0's schema. Depends on Router Agent (M2). Requires the Curriculum Foundation's model ([09_Curriculum_Foundation.md](09_Curriculum_Foundation.md), added after M2) to be actually implemented as Postgres tables and populated with real content (NCERT Class 3 Mathematics as the first dataset) before this milestone can start — the model now exists, but its Postgres migration and content population are still open work, not assumed done.
 
 ---
 
@@ -85,7 +85,7 @@ This is the most heavily bundled milestone in this roadmap and the one most like
 
 - `07_Evaluation_Framework.md` — empty; needed before M9's Evaluation Agent can be scoped.
 - `10_Observability.md` — empty; platform-wide observability strategy, distinct from the Observability Agent spec.
-- No Curriculum Graph document — needed before M3.
+- ~~No Curriculum Graph document~~ — resolved: [09_Curriculum_Foundation.md](09_Curriculum_Foundation.md) defines the model. Still open before M3 can start: its Postgres migration and real content population (NCERT Class 3 Mathematics as the first dataset).
 - No Policy Engine document — needed before M9's Safety Agent.
 - No Voice Agent spec file — needed before M9's Voice Agent work.
 
