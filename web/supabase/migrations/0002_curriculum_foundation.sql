@@ -204,6 +204,11 @@ create policy "Authenticated users can read concept-objective links"
 
 -- ============================================================
 -- misconceptions (Pedagogical Knowledge, Part B1)
+-- Carries the narrower Pedagogical Knowledge metadata profile
+-- (09_Curriculum_Foundation.md, Part C2): version/status/source/
+-- last_reviewed_by, but deliberately no curriculum_standard_reference
+-- or effective_from/effective_until -- a misconception isn't an
+-- artifact of a specific syllabus edition the way a Concept is.
 -- ============================================================
 create table public.misconceptions (
   id text primary key,
@@ -213,6 +218,8 @@ create table public.misconceptions (
   version int not null default 1,
   status text not null default 'published'
     check (status in ('draft', 'published', 'deprecated')),
+  source text,
+  last_reviewed_by text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -228,6 +235,8 @@ create policy "Authenticated users can read misconceptions"
 
 -- ============================================================
 -- teaching_strategies (Pedagogical Knowledge, Part B3)
+-- Narrower Pedagogical Knowledge metadata profile, same rationale as
+-- misconceptions above (09_Curriculum_Foundation.md, Part C2).
 -- ============================================================
 create table public.teaching_strategies (
   id text primary key,
@@ -237,6 +246,8 @@ create table public.teaching_strategies (
   version int not null default 1,
   status text not null default 'published'
     check (status in ('draft', 'published', 'deprecated')),
+  source text,
+  last_reviewed_by text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -253,7 +264,9 @@ create policy "Authenticated users can read teaching strategies"
 -- ============================================================
 -- mastery_criteria (Pedagogical Knowledge, Part B4)
 -- Attached to learning objectives, not concepts -- mastery is only
--- concrete relative to a specific measurable statement.
+-- concrete relative to a specific measurable statement. Narrower
+-- Pedagogical Knowledge metadata profile, same rationale as
+-- misconceptions above (09_Curriculum_Foundation.md, Part C2).
 -- ============================================================
 create table public.mastery_criteria (
   id text primary key,
@@ -262,6 +275,8 @@ create table public.mastery_criteria (
   version int not null default 1,
   status text not null default 'published'
     check (status in ('draft', 'published', 'deprecated')),
+  source text,
+  last_reviewed_by text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

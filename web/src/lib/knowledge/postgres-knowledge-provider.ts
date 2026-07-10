@@ -107,7 +107,7 @@ export function createPostgresKnowledgeProvider(
     async getMisconceptions(conceptId) {
       const { data, error } = await supabase
         .from("misconceptions")
-        .select("id, concept_id, description, common_triggers")
+        .select("id, concept_id, description, common_triggers, source, last_reviewed_by")
         .eq("concept_id", conceptId);
 
       if (error || !data) return [];
@@ -117,6 +117,8 @@ export function createPostgresKnowledgeProvider(
           conceptId: m.concept_id,
           description: m.description,
           commonTriggers: m.common_triggers ?? undefined,
+          source: m.source ?? undefined,
+          lastReviewedBy: m.last_reviewed_by ?? undefined,
         }),
       );
     },
@@ -124,7 +126,7 @@ export function createPostgresKnowledgeProvider(
     async getTeachingStrategies(conceptId) {
       const { data, error } = await supabase
         .from("teaching_strategies")
-        .select("id, concept_id, description, when_to_use")
+        .select("id, concept_id, description, when_to_use, source, last_reviewed_by")
         .eq("concept_id", conceptId);
 
       if (error || !data) return [];
@@ -134,6 +136,8 @@ export function createPostgresKnowledgeProvider(
           conceptId: t.concept_id,
           description: t.description,
           whenToUse: t.when_to_use ?? undefined,
+          source: t.source ?? undefined,
+          lastReviewedBy: t.last_reviewed_by ?? undefined,
         }),
       );
     },
@@ -141,7 +145,7 @@ export function createPostgresKnowledgeProvider(
     async getMasteryCriteria(learningObjectiveId) {
       const { data, error } = await supabase
         .from("mastery_criteria")
-        .select("id, learning_objective_id, evidence_required")
+        .select("id, learning_objective_id, evidence_required, source, last_reviewed_by")
         .eq("learning_objective_id", learningObjectiveId);
 
       if (error || !data) return [];
@@ -150,6 +154,8 @@ export function createPostgresKnowledgeProvider(
           id: m.id,
           learningObjectiveId: m.learning_objective_id,
           evidenceRequired: m.evidence_required,
+          source: m.source ?? undefined,
+          lastReviewedBy: m.last_reviewed_by ?? undefined,
         }),
       );
     },

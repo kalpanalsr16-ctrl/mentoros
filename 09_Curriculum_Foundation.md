@@ -78,7 +78,7 @@ An optional grouping layer between Grade and Concept, matching how most syllabi 
 - Grade (reference)
 - Title
 - Sequence (position within the grade)
-- *Content Metadata* (see Part C)
+- *Content Metadata* (see Part C1 — full profile)
 
 ---
 
@@ -90,7 +90,7 @@ The core node of the knowledge graph — a single, atomic piece of knowledge (e.
 - Chapter (reference, optional — a concept could exist outside a chapter grouping)
 - Name
 - Description
-- *Content Metadata* (see Part C)
+- *Content Metadata* (see Part C1 — full profile)
 
 Concepts do not store mastery criteria, Bloom's level, or assessment objectives directly — those attach through Learning Objectives (A5) where they apply at objective granularity, or directly to the Concept where they're genuinely concept-wide. See Part B for how pedagogical knowledge attaches.
 
@@ -103,7 +103,7 @@ A first-class entity, not a field on Concept. A Learning Objective is a specific
 - Learning Objective ID
 - Statement (the measurable "can do" description)
 - Bloom's Taxonomy Level (Remember / Understand / Apply / Analyze / Evaluate / Create)
-- *Content Metadata* (see Part C)
+- *Content Metadata* (see Part C1 — full profile)
 
 **Relationship to Concept:** many-to-many via `concept_objectives` — a concept typically has several learning objectives, and an integrative objective can span more than one concept (e.g. "solve a word problem using both addition and place value").
 
@@ -117,7 +117,7 @@ Distinct from Concept. A resource is something that *teaches* — a worked examp
 - Type (worked example / explanation / visual / analogy / practice set / other)
 - Title
 - Content Reference (pointer to the actual stored content — format intentionally left open; this document defines the relationship, not the content storage mechanism, which is Knowledge Retrieval Agent's concern at M5)
-- *Content Metadata* (see Part C)
+- *Content Metadata* (see Part C1 — full profile)
 
 **Relationship to Concept:** many-to-many via `resource_concepts` — one resource can cover several concepts, and a concept is typically covered by more than one resource (Knowledge Retrieval Agent picks among them by relevance, quality, and recency, per its existing Ranking Criteria).
 
@@ -135,7 +135,7 @@ The knowledge-graph backbone. Rather than a fixed `prerequisite_id` column on Co
   - `builds_on` — To extends From without strictly requiring mastery first (softer than prerequisite)
   - `related_to` — lateral connection, no directionality implied (useful for Retrieval's "topic similarity" signal)
   - `part_of` — From is a component of the broader To (e.g. "Adding Fractions" is `part_of` "Fractions")
-- *Content Metadata* (see Part C)
+- *Content Metadata* (see Part C1 — full profile)
 
 Future relationship types (e.g. `alternative_to` for equivalent concepts across curriculum standards, `remediated_by` linking a concept directly to a remediation path) are additive — a new row in whatever enumerates valid types, not a new column or table.
 
@@ -152,7 +152,7 @@ Every entity in this section attaches *to* a Part A entity (a Concept or a Learn
 - Related Learning Objectives (optional, many-to-many) — for a misconception that specifically undermines certain objectives rather than the concept broadly
 - Description (what the learner incorrectly believes)
 - Common Triggers (what kind of question or phrasing tends to surface it)
-- *Content Metadata* (see Part C)
+- *Content Metadata* (see Part C2 — narrower profile; no curriculum standard reference or effective dates)
 
 This is the entity Assessment Agent's "Misconception Detection" and Practice Agent's "Misconception Targeting" both already assume exists as a queryable repository.
 
@@ -164,7 +164,7 @@ This is the entity Assessment Agent's "Misconception Detection" and Practice Age
 - Misconception (reference)
 - Approach (what to do — a re-explanation angle, a targeted practice pattern, a prerequisite revision recommendation)
 - Recommended Resources (optional, references into A6 Learning Resource)
-- *Content Metadata* (see Part C)
+- *Content Metadata* (see Part C2 — narrower profile; no curriculum standard reference or effective dates)
 
 Feeds Planning and Reflection Agents' existing "recommend prerequisite revision" and "what should happen next" logic with a concrete, queryable answer rather than an ad hoc decision.
 
@@ -177,7 +177,7 @@ Feeds Planning and Reflection Agents' existing "recommend prerequisite revision"
 - Related Learning Objective (optional reference) — for a strategy specific to one objective rather than the whole concept
 - Description
 - When To Use (e.g. learner profile signals this strategy suits — low mastery, visual learner preference)
-- *Content Metadata* (see Part C)
+- *Content Metadata* (see Part C2 — narrower profile; no curriculum standard reference or effective dates)
 
 Feeds Planning Agent's "which teaching strategy maximizes understanding?" question and Concept Agent's strategy selection directly.
 
@@ -188,7 +188,7 @@ Feeds Planning Agent's "which teaching strategy maximizes understanding?" questi
 - Criteria ID
 - Learning Objective (reference) — mastery is defined at objective granularity, per this document's refinement, since "mastered" only means something concrete relative to a specific measurable statement
 - Evidence Required (what observable performance counts as mastered — e.g. "3 consecutive correct answers across varied question types")
-- *Content Metadata* (see Part C)
+- *Content Metadata* (see Part C2 — narrower profile; no curriculum standard reference or effective dates)
 
 This is what Assessment and Memory Agents' existing `mastery_score` fields should be calculated *against* — a concrete, per-objective definition rather than an implicit threshold.
 
@@ -199,15 +199,19 @@ This is what Assessment and Memory Agents' existing `mastery_score` fields shoul
 - Assessment Objective ID
 - Learning Objective (reference)
 - What Must Be Tested (the specific thing a valid assessment question must probe to actually evaluate this objective, not just the concept generally)
-- *Content Metadata* (see Part C)
+- *Content Metadata* (see Part C2 — narrower profile; no curriculum standard reference or effective dates)
 
 Gives Assessment Agent's question-evaluation logic a concrete target instead of inferring what "evaluate my solution" should actually check.
 
 ---
 
-# Part C — Content Metadata (shared across all content-bearing entities)
+# Part C — Content Metadata (two profiles, not one)
 
-Every entity in Parts A and B carries this shared metadata block, supporting future curriculum revisions without invalidating a learner's history against a stale version:
+Content-bearing entities carry metadata supporting future curriculum revisions without invalidating a learner's history against a stale version — but not the *same* metadata everywhere. Curriculum Structure (Part A) and Pedagogical Knowledge (Part B) are different kinds of content with different lifecycles, and the metadata each carries reflects that deliberately, rather than one block copied onto everything.
+
+## C1. Curriculum Structure Metadata (full profile)
+
+Applies to Chapter, Concept, Concept Relationship, and Learning Objective (Part A) — entities that are artifacts of a *specific syllabus edition*:
 
 - Version (increments on meaningful content change)
 - Status (Draft / Published / Deprecated)
@@ -216,6 +220,21 @@ Every entity in Parts A and B carries this shared metadata block, supporting fut
 - Effective From / Effective Until (optional date range, for content tied to a specific syllabus year)
 - Created At / Updated At
 - Last Reviewed By
+
+## C2. Pedagogical Knowledge Metadata (narrower profile)
+
+Applies to Misconception, Teaching Strategy, and Mastery Criteria (Part B) — entities that represent professional teaching/assessment knowledge, not artifacts of any one syllabus edition:
+
+- Version
+- Status
+- Source
+- Created At / Updated At
+- Last Reviewed By
+
+**Deliberately excluded, with rationale:**
+
+- **Curriculum Standard Reference** — a misconception, teaching strategy, or mastery criterion isn't defined *by* a curriculum standard the way a Concept or Learning Objective is. "Forgets to carry the ten" is true regardless of which syllabus a student follows. Whatever curriculum context matters is already reachable transitively through the `concept_id`/`learning_objective_id` each entity attaches to — it doesn't need its own reference.
+- **Effective From / Effective Until** — these fields are specifically about *syllabus-edition* date ranges, by their own definition (C1). Pedagogical knowledge doesn't have a syllabus edition to be effective within; its own lifecycle (superseded, retired) is already handled by `Status`/`Version`, a different mechanism for a different kind of change.
 
 A learner's mastery record (Learner Profile Model, `12_Learner_Profile_Model.md`) should reference the specific *version* of a Learning Objective it was measured against, so a later content revision doesn't retroactively and silently change the meaning of a historical mastery score.
 
