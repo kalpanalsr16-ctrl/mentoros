@@ -5,11 +5,11 @@ import { buildConversationContext } from "@/lib/agents/context-agent";
 import { generateTeachingReply, classifyIntentWithClaude } from "@/lib/llm/client";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { classifyIntent } from "@/lib/agents/router-agent";
+import { buildPlanningContext, decidePlan } from "@/lib/agents/planning-agent";
 import {
-  buildPlanningContext,
-  decidePlan,
-  describeLearningPlanForPrompt,
-} from "@/lib/agents/planning-agent";
+  decidePersonalization,
+  describePersonalizationForPrompt,
+} from "@/lib/agents/personalization-agent";
 import { unknownLearnerStateProvider } from "@/lib/learner/unknown-learner-state-provider";
 import { createStaticCurriculumProvider } from "@/lib/knowledge/static-curriculum-provider";
 import { ncertClass3MathAdditionSubtractionDataset } from "@/lib/knowledge/datasets/ncert-class3-math-addition-subtraction";
@@ -186,11 +186,16 @@ export async function POST(request: Request) {
       replyContent = routerResult.intent.clarificationQuestion!;
       llmMetadata = { isClarification: true };
     } else {
-      // Planning Agent (M3): only runs once Router has produced a
-      // non-clarification intent. Fails open into an unguided M1 reply on
-      // any error -- planning is an enhancement layered on top of M1's
-      // existing reply generation, not a new hard dependency.
-      let planGuidance: string | undefined;
+      // Planning Agent (M3) + Personalization Agent (M4): only run once
+      // Router has produced a non-clarification intent. Fails open into
+      // an unguided M1 reply on any error -- both are enhancements
+      // layered on top of M1's existing reply generation, not a new hard
+      // dependency. Personalization's profile -- not Planning's raw
+      // guidance -- is what reaches generateTeachingReply(), per
+      // Personalization's own spec describing itself as the single
+      // source of truth for how teaching should feel; Planning's output
+      // still feeds that decision, just not the prompt directly.
+      let teachingGuidance: string | undefined;
       if (routerResult.success) {
         try {
           const planningContext = await buildPlanningContext(
@@ -200,7 +205,6 @@ export async function POST(request: Request) {
             knowledgeProvider,
           );
           const plan = decidePlan(planningContext);
-          planGuidance = describeLearningPlanForPrompt(plan);
 
           await logEvent(supabase, {
             traceId,
@@ -213,6 +217,24 @@ export async function POST(request: Request) {
               pace: plan.pace,
               followUpRequired: plan.followUpRequired,
               conceptResolved: planningContext.concept !== null,
+            },
+          });
+
+          const profile = decidePersonalization({ planningContext, plan });
+          teachingGuidance = describePersonalizationForPrompt(profile);
+
+          await logEvent(supabase, {
+            traceId,
+            eventName: "personalization_profile_created",
+            studentId,
+            conversationId: activeConversationId,
+            payload: {
+              teachingStyle: profile.teachingStyle,
+              difficulty: profile.difficulty,
+              pace: profile.pace,
+              exampleStyle: profile.exampleStyle,
+              encouragement: profile.encouragement,
+              hintLevel: profile.hintLevel,
             },
           });
         } catch (err) {
@@ -229,7 +251,7 @@ export async function POST(request: Request) {
       }
 
       const llmStartedAt = Date.now();
-      const llmResult = await generateTeachingReply(history, planGuidance);
+      const llmResult = await generateTeachingReply(history, teachingGuidance);
       const llmLatencyMs = Date.now() - llmStartedAt;
 
       // Logged immediately, separate from the reply_sent/reply_failed events
