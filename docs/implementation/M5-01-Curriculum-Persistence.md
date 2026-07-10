@@ -37,6 +37,7 @@ M3 deliberately built `StaticCurriculumProvider` as a temporary, single-chapter 
 - **Every `KnowledgeProvider` method fails soft** (returns `null`/`[]` on a query error) rather than throwing — curriculum reads are a non-critical enhancement layered on M1's reply generation, the same resilience posture `rate-limit.ts` and `router-agent.ts` already established.
 - **Learning Resources (`09_Curriculum_Foundation.md` A6) were not migrated** — no content type needing them exists yet in the seeded dataset; additive whenever real resource content is authored, not built ahead of a need.
 - **The seed data is a separate migration file** (`0003_seed_ncert_class3_math_addition_subtraction.sql`) from the schema (`0002_curriculum_foundation.sql`) — schema evolution and content additions are different kinds of change with different review needs; a future second chapter is a new seed migration, not a schema change.
+- **Rollback scripts live in a separate `web/supabase/rollbacks/` directory, not alongside the forward migrations.** They're not numbered as additional forward migrations because nothing should ever auto-apply them in sequence (a future Supabase-CLI-linked project would otherwise try to run a `.down.sql` file as if it were the next migration). `0003`'s rollback deletes seeded rows by explicit id rather than truncating, so it stays correct even if later seed migrations add unrelated content to the same tables; `0002`'s rollback drops in the exact reverse of the forward create order, without `cascade`, so it fails loudly instead of silently deleting anything unexpected still present.
 
 ---
 
@@ -45,6 +46,7 @@ M3 deliberately built `StaticCurriculumProvider` as a temporary, single-chapter 
 - `web/supabase/migrations/0002_curriculum_foundation.sql` — schema: `subjects`, `grades`, `chapters`, `concepts`, `concept_relationships`, `learning_objectives`, `concept_learning_objectives`, `misconceptions`, `teaching_strategies`, `mastery_criteria`, all RLS-enabled with an authenticated-read-only policy. Also enables `pg_trgm` and defines `search_concept_id()` (M5B's function — added here since it lives in the same schema migration).
 - `web/supabase/migrations/0003_seed_ncert_class3_math_addition_subtraction.sql` — the same content M3's static dataset authored, now as seed data.
 - `web/src/lib/knowledge/postgres-knowledge-provider.ts` — `createPostgresKnowledgeProvider(supabase)`.
+- `web/supabase/rollbacks/0002_curriculum_foundation.down.sql` and `web/supabase/rollbacks/0003_seed_ncert_class3_math_addition_subtraction.down.sql` — documented reversal path for both forward migrations, added before either was applied live (see Architecture Decisions and Open Issues).
 
 ## Files Modified
 
@@ -99,7 +101,7 @@ None directly — `/api/chat`'s response shape is unchanged. Internally, the rou
 
 ## Open Issues
 
-- **This migration has not been applied to the live database yet** — no service-role key or linked Supabase CLI project is available in this environment. Needs to be run via the Supabase Dashboard SQL Editor (the same path M0-03 used for the original schema), or a service-role key provided for a scripted push.
+- **This migration has not been applied to the live database yet** — no service-role key or linked Supabase CLI project is available in this environment. Needs to be run via the Supabase Dashboard SQL Editor (the same path M0-03 used for the original schema), or a service-role key provided for a scripted push. Rollback scripts (`web/supabase/rollbacks/0002_curriculum_foundation.down.sql`, `.../0003_seed_....down.sql`) are committed and reviewed but have not themselves been run against a live database either — same as any migration/rollback pair before first use.
 - Learning Resources (A6) remain unmigrated — additive whenever real resource content exists.
 - Carried from M3: the seeded dataset still covers only one chapter.
 
