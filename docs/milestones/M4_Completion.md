@@ -1,9 +1,11 @@
 # Milestone M4 — Completion Report
 
-**Status:** ✅ Closed (functionally complete; not yet deployed)
+**Status:** ✅ Closed and deployed to Production
 **Closed:** 2026-07-11
-**Tag:** `v0.5.0-m4` (local; push/deploy pending explicit decision, same as M1–M3's initial closure)
+**Tag:** `v0.5.0-m4` (pushed to `origin`)
 **Reviewer:** Lead Engineer gate review (this document)
+
+**Post-review update (same day):** `main` and the `v0.5.0-m4` tag were pushed to `origin` after explicit authorization. Vercel redeployed Production automatically; `/api/health` returned `200`/`database: connected` and an unauthenticated `/api/chat` request returned `401`. No new Vercel environment variables were required. Preview/Staging was not pushed and is now four milestones behind (still on M1).
 
 ---
 
@@ -86,7 +88,7 @@ No new infrastructure. No new environment variables. Not yet deployed — Produc
 
 ## Risks
 
-1. **M4's code is not deployed.** Production currently runs M3's code; M4's commit is local-only pending an explicit decision.
+1. **Preview/Staging is now four milestones behind Production** (still on M1's build). A one-command fast-forward whenever wanted, not done automatically.
 2. **Every real learner is currently `isKnown: false`** (carried from M3) — Low Confidence, High Mastery, and Young Learner branches are fully implemented and tested but won't be exercised live until M7/M8 exist.
 3. **`preferredLearningStyle` has no real writer yet** — modeled and read, matching M3's stance on the rest of `LearnerState`.
 4. **The live verification's two scenarios happened to land on similar-looking profiles** (both "go gently"), since neither exercised the sharper High Mastery contrast live — that contrast is unit-tested but not yet seen in a live Claude reply.
@@ -104,7 +106,7 @@ No new infrastructure. No new environment variables. Not yet deployed — Produc
 
 | Item | Severity | Notes |
 |---|---|---|
-| M4 not deployed to Vercel | High | Same pattern as M1–M3; needs an explicit push/deploy decision |
+| Preview/Staging four milestones behind Production | Medium | Deliberate, at product owner's direction; catch up via `git push origin main:staging` when wanted |
 | Every learner reports unknown | Medium | Correct until M7/M8 exist; several Personalization branches untested live until then |
 | `preferredLearningStyle` unwritten | Low | Modeled ahead of a writer, same stance as the rest of `LearnerState` |
 | High Mastery / Young Learner branches not yet seen live | Low | Fully unit-tested; live confirmation pending real mastery variety |
@@ -123,7 +125,7 @@ No new infrastructure. No new environment variables. Not yet deployed — Produc
 |---|---|---|
 | 1 | Every M4 acceptance criterion met | ✅ All 9 criteria in M4-01 met, verified live, by unit test, and by structural check |
 | 2 | Application builds successfully | ✅ Clean `npm run build`, zero TypeScript errors (re-verified fresh) |
-| 3 | Deployment healthy | ⚠️ Not applicable yet — M4 code has not been pushed or deployed |
+| 3 | Deployment healthy | ✅ Production redeployed and verified (`/api/health` → `200`, `database: connected`; `/api/chat` → `401` unauthenticated). Preview/Staging intentionally left behind (product owner's direction) |
 | 4 | Supabase integration verified | ✅ Unchanged from M3; no new schema or query patterns introduced |
 | 5 | Sentry integration verified | ✅ Unchanged; not independently re-exercised (no new deploy) |
 | 6 | Environment variables verified | ✅ No new environment variables required for M4 |
@@ -132,4 +134,4 @@ No new infrastructure. No new environment variables. Not yet deployed — Produc
 | 9 | All decisions documented | ✅ Captured in M4-01 and summarized above |
 | 10 | No stray TODOs / incomplete work | ✅ No `TODO`/`FIXME`/`XXX` in source |
 
-**Verdict: M4 is functionally complete and closed at the code level.** Every acceptance criterion is met and verified — live for the profile-guided behavioral change, by unit test for the decision logic including precedence, and structurally for the unchanged safety guarantee. As with M1–M3's initial closure, deployment is the one item this report does not resolve on its own — pushing M4 requires the same explicit, specific go-ahead this project has required for every prior push.
+**Verdict: M4 is functionally complete, closed, and live on Production.** Every acceptance criterion is met and verified — live for the profile-guided behavioral change, by unit test for the decision logic including precedence, and structurally for the unchanged safety guarantee. Preview/Staging remains a one-command fast-forward away whenever wanted.
