@@ -62,9 +62,13 @@ Not the full spec: the multi-turn adaptive retry loop, the Learning State write,
 
 ## M7 — Practice Agent + Assessment Agent
 
-Practice question generation (depends on Concept Agent, M6) and answer evaluation (depends directly on Practice Agent). Bundled into one milestone since Assessment cannot be meaningfully tested without Practice already existing.
+Practice question generation and answer evaluation, gated for the first time on Router Agent's (M2) `primaryIntent` classification (`Practice`/`Assessment`) rather than always falling through the same Concept-Agent-or-fallback path regardless of what the student asked for — a gap that had existed, unnoticed, since M2 introduced intent classification without anything downstream acting on it.
 
-> **Reminder set at the user's request (2026-07-10):** when work reaches M7, revisit whether this reconstructed roadmap's milestone boundaries — especially M9's bundling — still hold, since they were a best-effort reconstruction rather than recovered original content.
+Deliberately gated on Router's intent alone, not Planning's Diagnostic-vs-not strategy (the gate M6's Concept Agent uses) — Planning's Diagnostic judgment is about how to *explain* a concept, not whether to honor an explicit practice request or answer submission. As a result, unlike M6, Practice and Assessment Agents fire live today rather than waiting on M8's learner-state writer.
+
+No new persisted state (Learning State practice progress, Assessment State, cross-session mastery) — deferred until Memory Agent (M8) exists to own it, same reasoning M3/M4/M6 already established.
+
+> **Reconstructed-roadmap reminder (set 2026-07-10) — resolved 2026-07-11.** At the start of M7, the product owner was asked whether this reconstructed roadmap's milestone boundaries — especially M9's bundling — still held. Confirmed as-is, no changes.
 
 ---
 

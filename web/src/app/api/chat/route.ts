@@ -6,23 +6,40 @@ import {
   generateTeachingReply,
   classifyIntentWithClaude,
   generateConceptExplanation,
+  generatePracticeSet,
+  generateAssessment,
   type ConceptAgentResult,
+  type PracticeAgentResult,
+  type AssessmentAgentResult,
 } from "@/lib/llm/client";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { classifyIntent } from "@/lib/agents/router-agent";
-import { buildPlanningContext, decidePlan } from "@/lib/agents/planning-agent";
+import { buildPlanningContext, decidePlan, type LearningPlan } from "@/lib/agents/planning-agent";
 import {
   decidePersonalization,
   describePersonalizationForPrompt,
+  type PersonalizationProfile,
 } from "@/lib/agents/personalization-agent";
 import {
   explainConcept,
   formatTeachingResponseAsReply,
   type ConceptAgentContext,
 } from "@/lib/agents/concept-agent";
+import {
+  createPracticeSet,
+  formatPracticeSetAsReply,
+  type PracticeAgentContext,
+} from "@/lib/agents/practice-agent";
+import {
+  evaluateResponse,
+  formatAssessmentReportAsReply,
+  extractPracticeContext,
+  type AssessmentAgentContext,
+} from "@/lib/agents/assessment-agent";
 import { unknownLearnerStateProvider } from "@/lib/learner/unknown-learner-state-provider";
 import { createPostgresKnowledgeProvider } from "@/lib/knowledge/postgres-knowledge-provider";
 import { createTrigramConceptSearchProvider } from "@/lib/knowledge/trigram-concept-search-provider";
+import type { PlanningContext } from "@/lib/agents/planning-context";
 
 export async function POST(request: Request) {
   const traceId = generateTraceId();
@@ -207,18 +224,26 @@ export async function POST(request: Request) {
       // Personalization's own spec describing itself as the single
       // source of truth for how teaching should feel; Planning's output
       // still feeds that decision, just not the prompt directly.
+      //
+      // planningContext/plan/profile are hoisted here (not scoped to the
+      // try block) because M7's Practice/Assessment branches below need
+      // them too, alongside M6's Concept Agent -- all three read the same
+      // Planning/Personalization output, they just differ in which one
+      // actually runs for a given turn.
       let teachingGuidance: string | undefined;
-      let conceptAgentContext: ConceptAgentContext | undefined;
+      let planningContext: PlanningContext | undefined;
+      let plan: LearningPlan | undefined;
+      let profile: PersonalizationProfile | undefined;
       if (routerResult.success) {
         try {
-          const planningContext = await buildPlanningContext(
+          planningContext = await buildPlanningContext(
             routerResult.intent,
             studentId,
             unknownLearnerStateProvider,
             knowledgeProvider,
             conceptSearchProvider,
           );
-          const plan = decidePlan(planningContext);
+          plan = decidePlan(planningContext);
 
           await logEvent(supabase, {
             traceId,
@@ -234,7 +259,7 @@ export async function POST(request: Request) {
             },
           });
 
-          const profile = decidePersonalization({ planningContext, plan });
+          profile = decidePersonalization({ planningContext, plan });
           teachingGuidance = describePersonalizationForPrompt(profile);
 
           await logEvent(supabase, {
@@ -251,28 +276,6 @@ export async function POST(request: Request) {
               hintLevel: profile.hintLevel,
             },
           });
-
-          // Concept Agent (M6): only runs once Planning has decided this
-          // isn't a diagnostic moment and a concept actually resolved --
-          // per 05_Planning_agent.md's Recovery Strategy ("If learner
-          // profile is incomplete: ask diagnostic questions"), Diagnostic
-          // means diagnose, not teach. Every real learner currently
-          // reports isKnown: false (carried from M3, no writer until
-          // M7/M8), so plan.strategy is "Diagnostic" unconditionally in
-          // production today -- this branch is fully tested but, like
-          // M4's High Mastery/Young Learner branches, not yet exercised
-          // live. See M6's gate review.
-          if (plan.strategy !== "Diagnostic" && planningContext.concept) {
-            conceptAgentContext = {
-              concept: planningContext.concept,
-              learningObjectives: planningContext.learningObjectives,
-              misconceptions: planningContext.misconceptions,
-              teachingStrategies: planningContext.teachingStrategies,
-              plan,
-              personalizationProfile: profile,
-              history,
-            };
-          }
         } catch (err) {
           await logEvent(supabase, {
             traceId,
@@ -288,18 +291,127 @@ export async function POST(request: Request) {
 
       const llmStartedAt = Date.now();
 
-      // Concept Agent's structured explanation, when Planning resolved a
-      // concept worth teaching; otherwise the existing free-text reply
-      // path (M1-M5) unchanged -- also the fallback if Concept Agent
-      // itself fails, per its own fail-open contract.
+      // Practice Agent (M7): gated on Router's own "Practice"
+      // classification, not Planning's Diagnostic/ConceptFirst/etc.
+      // strategy -- an explicit "give me practice questions" request is a
+      // distinct kind of turn from "explain this to me," and Planning's
+      // Diagnostic judgment is about whether to diagnose before
+      // explaining, not whether to refuse a direct practice request.
+      // Unlike Concept Agent, this is NOT gated on plan.strategy, so it
+      // actually fires live today rather than waiting on M8's learner
+      // state writer. Still requires a resolved concept, since Practice
+      // Agent's own Inputs section requires a Knowledge Package to
+      // generate aligned questions from.
+      let practiceResult: PracticeAgentResult | undefined;
+      if (
+        routerResult.success &&
+        routerResult.intent.primaryIntent === "Practice" &&
+        planningContext?.concept &&
+        plan &&
+        profile
+      ) {
+        const practiceAgentContext: PracticeAgentContext = {
+          concept: planningContext.concept,
+          learningObjectives: planningContext.learningObjectives,
+          misconceptions: planningContext.misconceptions,
+          teachingStrategies: planningContext.teachingStrategies,
+          plan,
+          personalizationProfile: profile,
+          history,
+        };
+        practiceResult = await createPracticeSet(practiceAgentContext, generatePracticeSet);
+      }
+
+      // Assessment Agent (M7): same Router-intent gate as Practice, not
+      // Planning's Diagnostic strategy. `concept` is optional here --
+      // Assessment can still evaluate a free-form answer without one,
+      // unlike Practice/Concept Agent which need a Knowledge Package to
+      // generate from.
+      let assessmentResult: AssessmentAgentResult | undefined;
+      if (
+        routerResult.success &&
+        routerResult.intent.primaryIntent === "Assessment" &&
+        plan &&
+        profile
+      ) {
+        const assessmentAgentContext: AssessmentAgentContext = {
+          concept: planningContext?.concept ?? null,
+          learningObjectives: planningContext?.learningObjectives ?? [],
+          misconceptions: planningContext?.misconceptions ?? [],
+          practiceContext: extractPracticeContext(history),
+          plan,
+          personalizationProfile: profile,
+          history,
+        };
+        assessmentResult = await evaluateResponse(assessmentAgentContext, generateAssessment);
+      }
+
+      // Concept Agent (M6): only when this turn wasn't already claimed by
+      // Practice or Assessment above, and (unlike them) only once Planning
+      // has decided this isn't a diagnostic moment -- per
+      // 05_Planning_agent.md's Recovery Strategy ("If learner profile is
+      // incomplete: ask diagnostic questions"), Diagnostic means diagnose,
+      // not teach. Every real learner currently reports isKnown: false (no
+      // writer until M7/M8), so plan.strategy is "Diagnostic"
+      // unconditionally in production today -- this branch is fully
+      // tested but, like M4's High Mastery/Young Learner branches, not
+      // yet exercised live. See M6's gate review.
       let conceptResult: ConceptAgentResult | undefined;
-      if (conceptAgentContext) {
+      if (
+        !practiceResult &&
+        !assessmentResult &&
+        plan &&
+        plan.strategy !== "Diagnostic" &&
+        planningContext?.concept &&
+        profile
+      ) {
+        const conceptAgentContext: ConceptAgentContext = {
+          concept: planningContext.concept,
+          learningObjectives: planningContext.learningObjectives,
+          misconceptions: planningContext.misconceptions,
+          teachingStrategies: planningContext.teachingStrategies,
+          plan,
+          personalizationProfile: profile,
+          history,
+        };
         conceptResult = await explainConcept(conceptAgentContext, generateConceptExplanation);
       }
 
       const llmLatencyMs = Date.now() - llmStartedAt;
 
-      if (conceptResult?.success) {
+      if (practiceResult?.success) {
+        await logEvent(supabase, {
+          traceId,
+          eventName: "practice_generated",
+          studentId,
+          conversationId: activeConversationId,
+          payload: {
+            model: practiceResult.model,
+            difficulty: practiceResult.response.difficulty,
+            questionCount: practiceResult.response.questions.length,
+            latencyMs: llmLatencyMs,
+          },
+        });
+
+        replyContent = formatPracticeSetAsReply(practiceResult.response);
+      } else if (assessmentResult?.success) {
+        await logEvent(supabase, {
+          traceId,
+          eventName: "assessment_completed",
+          studentId,
+          conversationId: activeConversationId,
+          payload: {
+            model: assessmentResult.model,
+            masteryScore: assessmentResult.response.masteryScore,
+            status: assessmentResult.response.status,
+            recommendedNextStep: assessmentResult.response.recommendedNextStep,
+            misconceptionCount: assessmentResult.response.misconceptions.length,
+            latencyMs: llmLatencyMs,
+          },
+        });
+
+        replyContent = formatAssessmentReportAsReply(assessmentResult.response);
+      } else if (conceptResult?.success) {
         await logEvent(supabase, {
           traceId,
           eventName: "concept_explained",
@@ -315,10 +427,30 @@ export async function POST(request: Request) {
 
         replyContent = formatTeachingResponseAsReply(conceptResult.response);
       } else {
-        if (conceptAgentContext && conceptResult) {
-          // Concept Agent was attempted and failed -- fails open into the
-          // same free-text path used when no concept resolved at all,
-          // rather than surfacing a raw error to the student.
+        // Whichever of Practice/Assessment/Concept Agent was attempted
+        // and failed falls open into the same free-text path used when
+        // none of them applied at all, rather than surfacing a raw error
+        // to the student. At most one of these three is ever attempted
+        // per turn, by construction above.
+        if (practiceResult && !practiceResult.success) {
+          await logEvent(supabase, {
+            traceId,
+            eventName: "practice_generation_failed",
+            studentId,
+            conversationId: activeConversationId,
+            payload: { reason: practiceResult.reason, latencyMs: llmLatencyMs },
+          });
+        }
+        if (assessmentResult && !assessmentResult.success) {
+          await logEvent(supabase, {
+            traceId,
+            eventName: "assessment_failed",
+            studentId,
+            conversationId: activeConversationId,
+            payload: { reason: assessmentResult.reason, latencyMs: llmLatencyMs },
+          });
+        }
+        if (conceptResult && !conceptResult.success) {
           await logEvent(supabase, {
             traceId,
             eventName: "concept_explanation_failed",

@@ -7,6 +7,17 @@ import {
   type ConceptAgentContext,
   type TeachingResponse,
 } from "@/lib/agents/concept-agent";
+import {
+  buildPracticeAgentSystemPrompt,
+  type PracticeAgentContext,
+  type PracticeSet,
+} from "@/lib/agents/practice-agent";
+import {
+  buildAssessmentAgentSystemPrompt,
+  deriveMasteryStatus,
+  type AssessmentAgentContext,
+  type AssessmentReport,
+} from "@/lib/agents/assessment-agent";
 
 const anthropic = new Anthropic();
 
@@ -243,6 +254,137 @@ export async function generateConceptExplanation(
     return {
       success: true,
       response: response.parsed_output,
+      model: response.model,
+    };
+  } catch (err) {
+    if (err instanceof Anthropic.RateLimitError) {
+      return { success: false, reason: "rate_limited" };
+    }
+    if (err instanceof Anthropic.AuthenticationError) {
+      return { success: false, reason: "auth_error" };
+    }
+    if (err instanceof Anthropic.APIConnectionError) {
+      return { success: false, reason: "connection_error" };
+    }
+    if (err instanceof Anthropic.APIError) {
+      return { success: false, reason: `api_error_${err.status}` };
+    }
+    return { success: false, reason: "unknown_error" };
+  }
+}
+
+/**
+ * Structured mirror of 09_Practice_Agent.md's Outputs example
+ * (topic/questions/difficulty/estimated_time/learning_goal).
+ */
+const PracticeSetSchema = z.object({
+  topic: z.string(),
+  questions: z.array(z.string()).min(3).max(5),
+  difficulty: z.enum(["Beginner", "Easy", "Medium", "Advanced", "Challenge"]),
+  estimatedTime: z.string(),
+  learningGoal: z.string(),
+});
+
+export type PracticeAgentResult =
+  | { success: true; response: PracticeSet; model: string }
+  | { success: false; reason: string };
+
+/**
+ * Practice Agent's generation call (M7) -- structured output via
+ * messages.parse(), same mechanism generateConceptExplanation already
+ * uses. The system prompt is built entirely by
+ * buildPracticeAgentSystemPrompt() (lib/agents/practice-agent.ts); this
+ * function's only job is the API call and its error handling.
+ */
+export async function generatePracticeSet(
+  context: PracticeAgentContext,
+): Promise<PracticeAgentResult> {
+  try {
+    const response = await anthropic.messages.parse({
+      model: MODEL,
+      max_tokens: MAX_TOKENS,
+      system: buildPracticeAgentSystemPrompt(context),
+      messages: context.history,
+      output_config: { format: zodOutputFormat(PracticeSetSchema) },
+    });
+
+    if (!response.parsed_output) {
+      return { success: false, reason: "parse_failed" };
+    }
+
+    return {
+      success: true,
+      response: response.parsed_output,
+      model: response.model,
+    };
+  } catch (err) {
+    if (err instanceof Anthropic.RateLimitError) {
+      return { success: false, reason: "rate_limited" };
+    }
+    if (err instanceof Anthropic.AuthenticationError) {
+      return { success: false, reason: "auth_error" };
+    }
+    if (err instanceof Anthropic.APIConnectionError) {
+      return { success: false, reason: "connection_error" };
+    }
+    if (err instanceof Anthropic.APIError) {
+      return { success: false, reason: `api_error_${err.status}` };
+    }
+    return { success: false, reason: "unknown_error" };
+  }
+}
+
+/**
+ * Structured mirror of 10_Assessment_Agent.md's Outputs example, minus
+ * `status` -- the model only produces `masteryScore`; `status` is derived
+ * deterministically by deriveMasteryStatus() below so the spec's Mastery
+ * Levels table is enforced exactly rather than hoped-for from the model.
+ */
+const AssessmentReportSchema = z.object({
+  masteryScore: z.number().min(0).max(100),
+  misconceptions: z.array(z.string()),
+  feedback: z.string(),
+  recommendedNextStep: z.enum([
+    "ContinueLearning",
+    "GenerateMorePractice",
+    "ReturnToConceptExplanation",
+    "StartRevision",
+    "AdvanceToNextTopic",
+  ]),
+});
+
+export type AssessmentAgentResult =
+  | { success: true; response: AssessmentReport; model: string }
+  | { success: false; reason: string };
+
+/**
+ * Assessment Agent's generation call (M7) -- structured output via
+ * messages.parse(), same mechanism every other structured call in this
+ * file uses. The system prompt is built entirely by
+ * buildAssessmentAgentSystemPrompt() (lib/agents/assessment-agent.ts).
+ */
+export async function generateAssessment(
+  context: AssessmentAgentContext,
+): Promise<AssessmentAgentResult> {
+  try {
+    const response = await anthropic.messages.parse({
+      model: MODEL,
+      max_tokens: MAX_TOKENS,
+      system: buildAssessmentAgentSystemPrompt(context),
+      messages: context.history,
+      output_config: { format: zodOutputFormat(AssessmentReportSchema) },
+    });
+
+    if (!response.parsed_output) {
+      return { success: false, reason: "parse_failed" };
+    }
+
+    return {
+      success: true,
+      response: {
+        ...response.parsed_output,
+        status: deriveMasteryStatus(response.parsed_output.masteryScore),
+      },
       model: response.model,
     };
   } catch (err) {
