@@ -2,7 +2,12 @@ import { createClient } from "@/lib/supabase/server";
 import { generateTraceId, logEvent } from "@/lib/observability/trace";
 import { checkMessageSafety, buildSafetyDeclineMessage } from "@/lib/safety/filter";
 import { buildConversationContext } from "@/lib/agents/context-agent";
-import { generateTeachingReply, classifyIntentWithClaude } from "@/lib/llm/client";
+import {
+  generateTeachingReply,
+  classifyIntentWithClaude,
+  generateConceptExplanation,
+  type ConceptAgentResult,
+} from "@/lib/llm/client";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { classifyIntent } from "@/lib/agents/router-agent";
 import { buildPlanningContext, decidePlan } from "@/lib/agents/planning-agent";
@@ -10,6 +15,11 @@ import {
   decidePersonalization,
   describePersonalizationForPrompt,
 } from "@/lib/agents/personalization-agent";
+import {
+  explainConcept,
+  formatTeachingResponseAsReply,
+  type ConceptAgentContext,
+} from "@/lib/agents/concept-agent";
 import { unknownLearnerStateProvider } from "@/lib/learner/unknown-learner-state-provider";
 import { createPostgresKnowledgeProvider } from "@/lib/knowledge/postgres-knowledge-provider";
 import { createTrigramConceptSearchProvider } from "@/lib/knowledge/trigram-concept-search-provider";
@@ -198,6 +208,7 @@ export async function POST(request: Request) {
       // source of truth for how teaching should feel; Planning's output
       // still feeds that decision, just not the prompt directly.
       let teachingGuidance: string | undefined;
+      let conceptAgentContext: ConceptAgentContext | undefined;
       if (routerResult.success) {
         try {
           const planningContext = await buildPlanningContext(
@@ -240,6 +251,28 @@ export async function POST(request: Request) {
               hintLevel: profile.hintLevel,
             },
           });
+
+          // Concept Agent (M6): only runs once Planning has decided this
+          // isn't a diagnostic moment and a concept actually resolved --
+          // per 05_Planning_agent.md's Recovery Strategy ("If learner
+          // profile is incomplete: ask diagnostic questions"), Diagnostic
+          // means diagnose, not teach. Every real learner currently
+          // reports isKnown: false (carried from M3, no writer until
+          // M7/M8), so plan.strategy is "Diagnostic" unconditionally in
+          // production today -- this branch is fully tested but, like
+          // M4's High Mastery/Young Learner branches, not yet exercised
+          // live. See M6's gate review.
+          if (plan.strategy !== "Diagnostic" && planningContext.concept) {
+            conceptAgentContext = {
+              concept: planningContext.concept,
+              learningObjectives: planningContext.learningObjectives,
+              misconceptions: planningContext.misconceptions,
+              teachingStrategies: planningContext.teachingStrategies,
+              plan,
+              personalizationProfile: profile,
+              history,
+            };
+          }
         } catch (err) {
           await logEvent(supabase, {
             traceId,
@@ -254,37 +287,78 @@ export async function POST(request: Request) {
       }
 
       const llmStartedAt = Date.now();
-      const llmResult = await generateTeachingReply(history, teachingGuidance);
+
+      // Concept Agent's structured explanation, when Planning resolved a
+      // concept worth teaching; otherwise the existing free-text reply
+      // path (M1-M5) unchanged -- also the fallback if Concept Agent
+      // itself fails, per its own fail-open contract.
+      let conceptResult: ConceptAgentResult | undefined;
+      if (conceptAgentContext) {
+        conceptResult = await explainConcept(conceptAgentContext, generateConceptExplanation);
+      }
+
       const llmLatencyMs = Date.now() - llmStartedAt;
 
-      // Logged immediately, separate from the reply_sent/reply_failed events
-      // below -- this is observability into the new external dependency
-      // itself (did Claude answer, how long did it take), not into whether
-      // the resulting text made it into the database.
-      await logEvent(supabase, {
-        traceId,
-        eventName: llmResult.success ? "llm_call_succeeded" : "llm_call_failed",
-        studentId,
-        conversationId: activeConversationId,
-        payload: llmResult.success
-          ? {
-              model: llmResult.model,
-              inputTokens: llmResult.inputTokens,
-              outputTokens: llmResult.outputTokens,
-              latencyMs: llmLatencyMs,
-            }
-          : { reason: llmResult.reason, latencyMs: llmLatencyMs },
-      });
+      if (conceptResult?.success) {
+        await logEvent(supabase, {
+          traceId,
+          eventName: "concept_explained",
+          studentId,
+          conversationId: activeConversationId,
+          payload: {
+            model: conceptResult.model,
+            nextStep: conceptResult.response.nextStep,
+            confidence: conceptResult.response.confidence,
+            latencyMs: llmLatencyMs,
+          },
+        });
 
-      if (llmResult.success) {
-        replyContent = llmResult.content;
+        replyContent = formatTeachingResponseAsReply(conceptResult.response);
       } else {
-        // Honest, saved fallback -- mirrors the same principle M0-06 already
-        // applies to the placeholder reply and M0-08 applies to safety
-        // declines: even a bad outcome gets a real, persisted turn in the
-        // conversation, never a raw crash or a silently missing reply.
-        replyContent = buildLLMFailureReply();
-        llmMetadata = { isFallbackReply: true };
+        if (conceptAgentContext && conceptResult) {
+          // Concept Agent was attempted and failed -- fails open into the
+          // same free-text path used when no concept resolved at all,
+          // rather than surfacing a raw error to the student.
+          await logEvent(supabase, {
+            traceId,
+            eventName: "concept_explanation_failed",
+            studentId,
+            conversationId: activeConversationId,
+            payload: { reason: conceptResult.reason, latencyMs: llmLatencyMs },
+          });
+        }
+
+        const llmResult = await generateTeachingReply(history, teachingGuidance);
+
+        // Logged immediately, separate from the reply_sent/reply_failed events
+        // below -- this is observability into the new external dependency
+        // itself (did Claude answer, how long did it take), not into whether
+        // the resulting text made it into the database.
+        await logEvent(supabase, {
+          traceId,
+          eventName: llmResult.success ? "llm_call_succeeded" : "llm_call_failed",
+          studentId,
+          conversationId: activeConversationId,
+          payload: llmResult.success
+            ? {
+                model: llmResult.model,
+                inputTokens: llmResult.inputTokens,
+                outputTokens: llmResult.outputTokens,
+                latencyMs: Date.now() - llmStartedAt,
+              }
+            : { reason: llmResult.reason, latencyMs: Date.now() - llmStartedAt },
+        });
+
+        if (llmResult.success) {
+          replyContent = llmResult.content;
+        } else {
+          // Honest, saved fallback -- mirrors the same principle M0-06 already
+          // applies to the placeholder reply and M0-08 applies to safety
+          // declines: even a bad outcome gets a real, persisted turn in the
+          // conversation, never a raw crash or a silently missing reply.
+          replyContent = buildLLMFailureReply();
+          llmMetadata = { isFallbackReply: true };
+        }
       }
     }
   }

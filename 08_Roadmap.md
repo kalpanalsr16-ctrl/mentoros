@@ -52,9 +52,11 @@ Split into two phases once the actual scale was assessed: **M5A** migrated the C
 
 ---
 
-## M6 — Concept Agent (full spec)
+## M6 — Concept Agent (v1, single-turn)
 
-The full, spec-compliant Concept Agent — structured Connect→Explain→Illustrate→Example→Check→Clarify→Summarize→Transition teaching framework — superseding M1's minimal placeholder-replacement response now that all four of its documented dependencies (Knowledge Retrieval, Planning, Personalization, Context) actually exist.
+Superseded M1's free-text, guidance-string teaching reply with a real Concept Agent: a structured, single-turn teaching response (`concept`/`explanation`/`example`/`nextStep`/`confidence`) running the Connect→Explain→Illustrate→Example→Check Understanding framework within one Claude call, built from Knowledge Retrieval (M5), Planning (M3), Personalization (M4), and Context (M1).
+
+Not the full spec: the multi-turn adaptive retry loop, the Learning State write, and true cross-turn Understanding Checks are deliberately deferred — no signal exists anywhere in the pipeline yet for "the learner is still confused by the previous explanation" (Router classifies intent categories, not confusion), and nothing downstream reads session-lesson-progress since Practice Agent (M7) doesn't exist. Revisit once M7/M8 exist to inform those gaps honestly rather than guessed at. Additionally, Concept Agent is gated on `plan.strategy !== "Diagnostic"` per Planning's own Recovery Strategy — since every real learner currently reports `isKnown: false` (carried from M3/M4, no writer until M7/M8), this branch is fully implemented and tested but does not yet fire live in production.
 
 ---
 

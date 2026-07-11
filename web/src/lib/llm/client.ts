@@ -2,6 +2,11 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import type { ClaudeMessage } from "@/lib/agents/context-agent";
+import {
+  buildConceptAgentSystemPrompt,
+  type ConceptAgentContext,
+  type TeachingResponse,
+} from "@/lib/agents/concept-agent";
 
 const anthropic = new Anthropic();
 
@@ -171,6 +176,73 @@ export async function classifyIntentWithClaude(
     return {
       success: true,
       classification: response.parsed_output,
+      model: response.model,
+    };
+  } catch (err) {
+    if (err instanceof Anthropic.RateLimitError) {
+      return { success: false, reason: "rate_limited" };
+    }
+    if (err instanceof Anthropic.AuthenticationError) {
+      return { success: false, reason: "auth_error" };
+    }
+    if (err instanceof Anthropic.APIConnectionError) {
+      return { success: false, reason: "connection_error" };
+    }
+    if (err instanceof Anthropic.APIError) {
+      return { success: false, reason: `api_error_${err.status}` };
+    }
+    return { success: false, reason: "unknown_error" };
+  }
+}
+
+/**
+ * Structured mirror of 08_Concept_Agent.md's Outputs example
+ * (concept/explanation/example/next_step/confidence). `nextStep` is
+ * constrained to the framework's terminal states this milestone actually
+ * produces -- "Practice" is the common case once teaching finishes, per
+ * the framework's own "Transition to Practice" final step.
+ */
+const TeachingResponseSchema = z.object({
+  concept: z.string(),
+  explanation: z.string(),
+  example: z.string(),
+  nextStep: z.enum(["Practice", "Clarification", "Summary"]),
+  confidence: z.number().min(0).max(1),
+});
+
+export type ConceptAgentResult =
+  | { success: true; response: TeachingResponse; model: string }
+  | { success: false; reason: string };
+
+/**
+ * Concept Agent's generation call (M6) -- structured output via
+ * messages.parse(), same mechanism classifyIntentWithClaude already uses,
+ * so the model's response is a validated TeachingResponse rather than
+ * free text to parse by hand. The system prompt is built entirely by
+ * buildConceptAgentSystemPrompt() (lib/agents/concept-agent.ts) from the
+ * Knowledge Package/Learning Plan/Personalization Profile the caller
+ * assembled -- this function's only job is the API call and its error
+ * handling, mirroring every other Claude call in this file.
+ */
+export async function generateConceptExplanation(
+  context: ConceptAgentContext,
+): Promise<ConceptAgentResult> {
+  try {
+    const response = await anthropic.messages.parse({
+      model: MODEL,
+      max_tokens: MAX_TOKENS,
+      system: buildConceptAgentSystemPrompt(context),
+      messages: context.history,
+      output_config: { format: zodOutputFormat(TeachingResponseSchema) },
+    });
+
+    if (!response.parsed_output) {
+      return { success: false, reason: "parse_failed" };
+    }
+
+    return {
+      success: true,
+      response: response.parsed_output,
       model: response.model,
     };
   } catch (err) {
