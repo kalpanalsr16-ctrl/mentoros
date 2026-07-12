@@ -74,7 +74,11 @@ No new persisted state (Learning State practice progress, Assessment State, cros
 
 ## M8 — Reflection Agent + Memory Agent
 
-Post-session reflection (depends on Assessment + Practice, M7) and long-term learner memory (depends directly on Reflection). Bundled for the same reason as M7.
+Reflection Agent synthesizes an Assessment Report into a structured (internal, not shown to the student) Learning Reflection Report; Memory Agent merges that evidence into a real, Postgres-backed Learner Profile — the first real implementation of `LearnerStateProvider`, replacing `unknownLearnerStateProvider`. This is the milestone that finally lets `LearnerState.isKnown` become `true`, unblocking branches M4 (High Mastery/Young Learner personalization) and M6 (Concept Agent) have carried as "tested but dormant" since they were built.
+
+Scoped to only the Learner Profile fields `LearnerState` already models (mastery, weak/strong concepts, confidence, grade, goals, style) — the full 11-category model in `12_Learner_Profile_Model.md` (emotional signals, achievement system, learning-behaviour analytics, revision scheduling) has no current reader and remains a documented, deferred gap. Reflection + Memory run right after a successful Assessment turn (`AssessmentCompleted`, Reflection's own documented trigger), not on an invented "session end" concept, since MentorOS has no session-lifecycle mechanism to hang one on. Memory Agent is a pure, deterministic merge function, not a new Claude call — by the time it runs, Assessment and Reflection have already done the interpretive work.
+
+Bundled for the same reason as M7: Memory cannot be meaningfully tested without Reflection's output to merge.
 
 ---
 

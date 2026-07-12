@@ -18,6 +18,11 @@ import {
   type AssessmentAgentContext,
   type AssessmentReport,
 } from "@/lib/agents/assessment-agent";
+import {
+  buildReflectionAgentSystemPrompt,
+  type ReflectionAgentContext,
+  type ReflectionReport,
+} from "@/lib/agents/reflection-agent";
 
 const anthropic = new Anthropic();
 
@@ -385,6 +390,74 @@ export async function generateAssessment(
         ...response.parsed_output,
         status: deriveMasteryStatus(response.parsed_output.masteryScore),
       },
+      model: response.model,
+    };
+  } catch (err) {
+    if (err instanceof Anthropic.RateLimitError) {
+      return { success: false, reason: "rate_limited" };
+    }
+    if (err instanceof Anthropic.AuthenticationError) {
+      return { success: false, reason: "auth_error" };
+    }
+    if (err instanceof Anthropic.APIConnectionError) {
+      return { success: false, reason: "connection_error" };
+    }
+    if (err instanceof Anthropic.APIError) {
+      return { success: false, reason: `api_error_${err.status}` };
+    }
+    return { success: false, reason: "unknown_error" };
+  }
+}
+
+/**
+ * Structured mirror of 11_Reflection_Agent.md's Outputs example
+ * (concept/learning_status/confidence/misconceptions/recommended_action/
+ * reflection_summary, renamed to camelCase).
+ */
+const ReflectionReportSchema = z.object({
+  concept: z.string(),
+  learningStatus: z.enum([
+    "FullyMastered",
+    "MostlyMastered",
+    "PartiallyMastered",
+    "NeedsRevision",
+    "AtRisk",
+  ]),
+  confidence: z.enum(["Low", "Medium", "High"]),
+  misconceptions: z.array(z.string()),
+  recommendedAction: z.string(),
+  reflectionSummary: z.string(),
+});
+
+export type ReflectionAgentResult =
+  | { success: true; response: ReflectionReport; model: string }
+  | { success: false; reason: string };
+
+/**
+ * Reflection Agent's generation call (M8) -- structured output via
+ * messages.parse(), same mechanism every other structured call in this
+ * file uses. The system prompt is built entirely by
+ * buildReflectionAgentSystemPrompt() (lib/agents/reflection-agent.ts).
+ */
+export async function generateReflection(
+  context: ReflectionAgentContext,
+): Promise<ReflectionAgentResult> {
+  try {
+    const response = await anthropic.messages.parse({
+      model: MODEL,
+      max_tokens: MAX_TOKENS,
+      system: buildReflectionAgentSystemPrompt(context),
+      messages: context.history,
+      output_config: { format: zodOutputFormat(ReflectionReportSchema) },
+    });
+
+    if (!response.parsed_output) {
+      return { success: false, reason: "parse_failed" };
+    }
+
+    return {
+      success: true,
+      response: response.parsed_output,
       model: response.model,
     };
   } catch (err) {

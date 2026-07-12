@@ -8,6 +8,7 @@ import {
   generateConceptExplanation,
   generatePracticeSet,
   generateAssessment,
+  generateReflection,
   type ConceptAgentResult,
   type PracticeAgentResult,
   type AssessmentAgentResult,
@@ -36,7 +37,10 @@ import {
   extractPracticeContext,
   type AssessmentAgentContext,
 } from "@/lib/agents/assessment-agent";
-import { unknownLearnerStateProvider } from "@/lib/learner/unknown-learner-state-provider";
+import { reflectOnSession, type ReflectionAgentContext } from "@/lib/agents/reflection-agent";
+import { updateLearnerProfile, type MemoryAgentContext } from "@/lib/agents/memory-agent";
+import { createPostgresLearnerStateProvider } from "@/lib/learner/postgres-learner-state-provider";
+import { createPostgresLearnerProfileWriter } from "@/lib/learner/postgres-learner-profile-writer";
 import { createPostgresKnowledgeProvider } from "@/lib/knowledge/postgres-knowledge-provider";
 import { createTrigramConceptSearchProvider } from "@/lib/knowledge/trigram-concept-search-provider";
 import type { PlanningContext } from "@/lib/agents/planning-context";
@@ -53,6 +57,11 @@ export async function POST(request: Request) {
   // wiring point, per the M3/M5 design agreements.
   const knowledgeProvider = createPostgresKnowledgeProvider(supabase);
   const conceptSearchProvider = createTrigramConceptSearchProvider(supabase);
+
+  // M8: real learner state, replacing unknownLearnerStateProvider now
+  // that Memory Agent (below) actually writes something here.
+  const learnerStateProvider = createPostgresLearnerStateProvider(supabase);
+  const learnerProfileWriter = createPostgresLearnerProfileWriter(supabase);
 
   const { data: claimsData } = await supabase.auth.getClaims();
 
@@ -239,7 +248,7 @@ export async function POST(request: Request) {
           planningContext = await buildPlanningContext(
             routerResult.intent,
             studentId,
-            unknownLearnerStateProvider,
+            learnerStateProvider,
             knowledgeProvider,
             conceptSearchProvider,
           );
@@ -411,6 +420,78 @@ export async function POST(request: Request) {
         });
 
         replyContent = formatAssessmentReportAsReply(assessmentResult.response);
+
+        // Reflection Agent + Memory Agent (M8): run only after a
+        // successful Assessment -- AssessmentCompleted is Reflection's
+        // own documented trigger event (11_Reflection_Agent.md), and
+        // it's the only concrete trigger that exists in this pipeline
+        // (no SessionEnding concept exists anywhere in MentorOS yet).
+        // Entirely internal -- doesn't change replyContent, which stays
+        // exactly the Assessment feedback above. Wrapped in one try/catch
+        // so a failure here never affects the reply already decided.
+        try {
+          const reflectionAgentContext: ReflectionAgentContext = {
+            concept: planningContext?.concept ?? null,
+            assessmentReport: assessmentResult.response,
+            learnerState: planningContext?.learnerState ?? { isKnown: false },
+            history,
+          };
+          const reflectionResult = await reflectOnSession(reflectionAgentContext, generateReflection);
+
+          if (reflectionResult.success) {
+            await logEvent(supabase, {
+              traceId,
+              eventName: "reflection_completed",
+              studentId,
+              conversationId: activeConversationId,
+              payload: {
+                model: reflectionResult.model,
+                learningStatus: reflectionResult.response.learningStatus,
+                confidence: reflectionResult.response.confidence,
+                recommendedAction: reflectionResult.response.recommendedAction,
+              },
+            });
+          } else {
+            await logEvent(supabase, {
+              traceId,
+              eventName: "reflection_failed",
+              studentId,
+              conversationId: activeConversationId,
+              payload: { reason: reflectionResult.reason },
+            });
+          }
+
+          // Memory Agent still has real evidence from Assessment alone
+          // even when Reflection failed above -- it isn't discarded.
+          const memoryAgentContext: MemoryAgentContext = {
+            studentId,
+            conceptId: planningContext?.concept?.id ?? null,
+            assessmentReport: assessmentResult.response,
+            reflectionReport: reflectionResult.success ? reflectionResult.response : null,
+          };
+          const memoryResult = await updateLearnerProfile(memoryAgentContext, learnerProfileWriter);
+
+          if (memoryResult.applied) {
+            await logEvent(supabase, {
+              traceId,
+              eventName: "learner_profile_updated",
+              studentId,
+              conversationId: activeConversationId,
+              payload: {
+                conceptId: memoryResult.evidence?.conceptId,
+                masteryScore: memoryResult.evidence?.masteryScore,
+              },
+            });
+          }
+        } catch (err) {
+          await logEvent(supabase, {
+            traceId,
+            eventName: "memory_update_failed",
+            studentId,
+            conversationId: activeConversationId,
+            payload: { reason: err instanceof Error ? err.message : "unknown_error" },
+          });
+        }
       } else if (conceptResult?.success) {
         await logEvent(supabase, {
           traceId,
