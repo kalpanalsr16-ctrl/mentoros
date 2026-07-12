@@ -95,11 +95,11 @@ This is the most heavily bundled milestone in this roadmap and the one most like
 
 ## Known gaps this roadmap surfaced
 
-- `07_Evaluation_Framework.md` — empty; needed before M9's Evaluation Agent can be scoped.
-- `10_Observability.md` — empty; platform-wide observability strategy, distinct from the Observability Agent spec.
+- ~~`07_Evaluation_Framework.md` — empty; needed before M9's Evaluation Agent can be scoped.~~ Drafted 2026-07-12 ([07_Evaluation_Framework.md](07_Evaluation_Framework.md)), grounded in what `13_Evaluation_Agent.md` already references — pending product owner review before M9's Evaluation Agent is implemented against it.
+- `10_Observability.md` — still empty; platform-wide observability strategy, distinct from the Observability Agent spec. Not a formal blocker the way the other three gaps are — `14_Observability_Agent.md`'s own Dependencies section names "Every AI Agent, Event Stream, Evaluation Agent, Session State," not this document — but still worth authoring before treating Observability Agent as fully scoped.
 - ~~No Curriculum Graph document~~ — resolved: [09_Curriculum_Foundation.md](09_Curriculum_Foundation.md) defines the model. Still open before M3 can start: its Postgres migration and real content population (NCERT Class 3 Mathematics as the first dataset).
-- No Policy Engine document — needed before M9's Safety Agent.
-- No Voice Agent spec file — needed before M9's Voice Agent work.
+- ~~No Policy Engine document — needed before M9's Safety Agent.~~ Drafted 2026-07-12 ([11_Policy_Engine.md](11_Policy_Engine.md)), grounded in `03_Safety_Agent.md`'s existing Safety Categories/Risk Levels sections — pending product owner review, with three open questions flagged in the document itself (age-band granularity, whether Medium-risk response constraints are wireable today, and an apparent tension between Safety Agent's Decision Logic ordering and its stated Dependency on Router Agent).
+- No Voice Agent spec file — needed before M9's Voice Agent work. Deliberately not drafted (2026-07-12): a product spec, not a technical framework document — requires a product decision on scope/interaction model this project's process shouldn't make unilaterally.
 
 ## Reconstruction note
 
