@@ -1,18 +1,26 @@
 import { createClient } from "@/lib/supabase/server";
 import { generateTraceId, logEvent } from "@/lib/observability/trace";
 import { checkMessageSafety, buildSafetyDeclineMessage } from "@/lib/safety/filter";
-import { buildConversationContext } from "@/lib/agents/context-agent";
+import { buildConversationContext, type ClaudeMessage } from "@/lib/agents/context-agent";
 import {
   generateTeachingReply,
   classifyIntentWithClaude,
+  classifySafetyWithClaude,
   generateConceptExplanation,
   generatePracticeSet,
   generateAssessment,
   generateReflection,
+  generateEvaluation,
   type ConceptAgentResult,
   type PracticeAgentResult,
   type AssessmentAgentResult,
 } from "@/lib/llm/client";
+import { evaluateSafety } from "@/lib/agents/safety-agent";
+import {
+  evaluateInteraction,
+  type EvaluationAgentContext,
+  type EvaluationSourceAgent,
+} from "@/lib/agents/evaluation-agent";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { classifyIntent } from "@/lib/agents/router-agent";
 import { buildPlanningContext, decidePlan, type LearningPlan } from "@/lib/agents/planning-agent";
@@ -44,6 +52,9 @@ import { createPostgresLearnerProfileWriter } from "@/lib/learner/postgres-learn
 import { createPostgresKnowledgeProvider } from "@/lib/knowledge/postgres-knowledge-provider";
 import { createTrigramConceptSearchProvider } from "@/lib/knowledge/trigram-concept-search-provider";
 import type { PlanningContext } from "@/lib/agents/planning-context";
+import type { Concept } from "@/lib/knowledge/curriculum-types";
+
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
 export async function POST(request: Request) {
   const traceId = generateTraceId();
@@ -105,17 +116,12 @@ export async function POST(request: Request) {
     );
   }
 
-  const safetyCheck = checkMessageSafety(content);
-
-  await logEvent(supabase, {
-    traceId,
-    eventName: safetyCheck.safe ? "message_received" : "safety_blocked",
-    studentId,
-    conversationId,
-    payload: safetyCheck.safe
-      ? { contentLength: content.length }
-      : { category: safetyCheck.category, contentLength: content.length },
-  });
+  // Layer 1 of M9's Safety Agent -- the M0 keyword filter, free and
+  // deterministic. Computed here (before history even exists) so a
+  // message it already flags never pays for a conversation lookup it
+  // won't need history for; Layer 2 (below, after the message is saved)
+  // only runs when this passes.
+  const layer1Result = checkMessageSafety(content);
 
   let activeConversationId = conversationId;
 
@@ -173,19 +179,51 @@ export async function POST(request: Request) {
     );
   }
 
+  // Built after the user message above was saved, so the history the
+  // model sees naturally ends with the message the student just sent --
+  // needed here (not just later) since Layer 2 of Safety Agent (M9)
+  // reasons over the Context Object, per 03_Safety_Agent.md's Inputs
+  // section. Skipped (and Layer 2 never called) when Layer 1 already
+  // flagged the message -- evaluateSafety() short-circuits before ever
+  // touching `history` or `classify` in that case.
+  const history = layer1Result.safe
+    ? await buildConversationContext(supabase, activeConversationId)
+    : [];
+
+  // Safety Agent (M9): the first agent to touch this message, running
+  // before Router/Planning/Knowledge Retrieval/Concept Agent -- per
+  // 03_Safety_Agent.md's 2026-07-12 Revision note. Enforces exactly two
+  // outcomes (Allow/Block, per 11_Policy_Engine.md's Enforcement
+  // Actions), fails CLOSED (not open) on its own Layer 2 call failure --
+  // see safety-agent.ts's doc comment for why this is the one
+  // intentional exception to this codebase's fail-open convention.
+  const safetyAssessment = await evaluateSafety(history, layer1Result, classifySafetyWithClaude);
+
+  await logEvent(supabase, {
+    traceId,
+    eventName: safetyAssessment.safe ? "message_received" : "safety_blocked",
+    studentId,
+    conversationId: activeConversationId,
+    payload: safetyAssessment.safe
+      ? { contentLength: content.length }
+      : {
+          category: safetyAssessment.category,
+          riskLevel: safetyAssessment.riskLevel,
+          confidence: safetyAssessment.confidence,
+          contentLength: content.length,
+        },
+  });
+
   let replyContent: string;
   let llmMetadata: Record<string, unknown> = {};
 
-  if (!safetyCheck.safe) {
-    // Unsafe messages never reach Claude at all -- M0-08's filter is the
-    // gate, not a pre-check the LLM could still be argued past. Zero
-    // Anthropic API calls for blocked content, by design.
-    replyContent = buildSafetyDeclineMessage(safetyCheck.category);
+  if (!safetyAssessment.safe) {
+    // Blocked messages never reach Router/Planning/Concept Agent at all
+    // -- Safety Agent is the gate, not a pre-check the rest of the
+    // pipeline could still be argued past. Zero further Anthropic API
+    // calls for blocked content, by design.
+    replyContent = buildSafetyDeclineMessage(safetyAssessment.category ?? "platform_abuse");
   } else {
-    // Built after the user message above was saved, so the history the
-    // model sees naturally ends with the message the student just sent.
-    const history = await buildConversationContext(supabase, activeConversationId);
-
     // Router Agent (M2): intent analysis only -- it never generates a
     // teaching reply itself. It decides whether this message needs
     // clarification; when it doesn't, the existing M1 reply path below
@@ -403,6 +441,18 @@ export async function POST(request: Request) {
         });
 
         replyContent = formatPracticeSetAsReply(practiceResult.response);
+
+        await runEvaluationAgent(supabase, {
+          traceId,
+          studentId,
+          conversationId: activeConversationId,
+          sourceAgent: "Practice",
+          responseText: replyContent,
+          concept: planningContext?.concept ?? null,
+          personalizationProfile: profile!,
+          latencyMs: llmLatencyMs,
+          history,
+        });
       } else if (assessmentResult?.success) {
         await logEvent(supabase, {
           traceId,
@@ -420,6 +470,18 @@ export async function POST(request: Request) {
         });
 
         replyContent = formatAssessmentReportAsReply(assessmentResult.response);
+
+        await runEvaluationAgent(supabase, {
+          traceId,
+          studentId,
+          conversationId: activeConversationId,
+          sourceAgent: "Assessment",
+          responseText: replyContent,
+          concept: planningContext?.concept ?? null,
+          personalizationProfile: profile!,
+          latencyMs: llmLatencyMs,
+          history,
+        });
 
         // Reflection Agent + Memory Agent (M8): run only after a
         // successful Assessment -- AssessmentCompleted is Reflection's
@@ -507,6 +569,18 @@ export async function POST(request: Request) {
         });
 
         replyContent = formatTeachingResponseAsReply(conceptResult.response);
+
+        await runEvaluationAgent(supabase, {
+          traceId,
+          studentId,
+          conversationId: activeConversationId,
+          sourceAgent: "Concept",
+          responseText: replyContent,
+          concept: planningContext?.concept ?? null,
+          personalizationProfile: profile!,
+          latencyMs: llmLatencyMs,
+          history,
+        });
       } else {
         // Whichever of Practice/Assessment/Concept Agent was attempted
         // and failed falls open into the same free-text path used when
@@ -606,7 +680,7 @@ export async function POST(request: Request) {
 
   await logEvent(supabase, {
     traceId,
-    eventName: safetyCheck.safe ? "reply_sent" : "safety_reply_sent",
+    eventName: safetyAssessment.safe ? "reply_sent" : "safety_reply_sent",
     studentId,
     conversationId: activeConversationId,
     payload: {
@@ -630,4 +704,103 @@ export async function POST(request: Request) {
 // docs/implementation/M1-04-Chat-Route-Integration.md.
 function buildLLMFailureReply(): string {
   return "I'm having trouble responding right now. Please try sending your message again in a moment.";
+}
+
+/**
+ * Evaluation Agent (M9): runs after Concept, Practice, or Assessment
+ * Agent each succeed -- broader trigger coverage than M8's Reflection
+ * (which only hooks Assessment), matching 13_Evaluation_Agent.md's own
+ * Events Consumed and its "100% of learner interactions" coverage
+ * target. Internal only -- never changes replyContent, which is already
+ * decided by the caller before this runs. Wrapped in its own try/catch,
+ * separate from any Reflection/Memory try/catch on the same turn, so an
+ * Evaluation failure never affects them or the reply -- per
+ * 13_Evaluation_Agent.md's own Retry Strategy: "Evaluation should never
+ * block learner interactions."
+ */
+async function runEvaluationAgent(
+  supabase: SupabaseServerClient,
+  params: {
+    traceId: string;
+    studentId: string;
+    conversationId: string;
+    sourceAgent: EvaluationSourceAgent;
+    responseText: string;
+    concept: Concept | null;
+    personalizationProfile: PersonalizationProfile;
+    latencyMs: number;
+    history: ClaudeMessage[];
+  },
+): Promise<void> {
+  try {
+    const evaluationContext: EvaluationAgentContext = {
+      sourceAgent: params.sourceAgent,
+      responseText: params.responseText,
+      concept: params.concept,
+      personalizationProfile: params.personalizationProfile,
+      latencyMs: params.latencyMs,
+      history: params.history,
+    };
+    const evaluationResult = await evaluateInteraction(evaluationContext, generateEvaluation);
+
+    if (!evaluationResult.success) {
+      await logEvent(supabase, {
+        traceId: params.traceId,
+        eventName: "evaluation_failed",
+        studentId: params.studentId,
+        conversationId: params.conversationId,
+        payload: { sourceAgent: params.sourceAgent, reason: evaluationResult.reason },
+      });
+      return;
+    }
+
+    const { response } = evaluationResult;
+
+    await logEvent(supabase, {
+      traceId: params.traceId,
+      eventName: "evaluation_completed",
+      studentId: params.studentId,
+      conversationId: params.conversationId,
+      payload: {
+        sourceAgent: params.sourceAgent,
+        model: evaluationResult.model,
+        overallScore: response.overallScore,
+        qualityStatus: response.qualityStatus,
+        groundedness: response.groundedness,
+        safety: response.safety,
+        hallucinationRisk: response.hallucinationRisk,
+      },
+    });
+
+    if (response.qualityStatus === "NeedsImprovement") {
+      await logEvent(supabase, {
+        traceId: params.traceId,
+        eventName: "low_quality_detected",
+        studentId: params.studentId,
+        conversationId: params.conversationId,
+        payload: { sourceAgent: params.sourceAgent, overallScore: response.overallScore },
+      });
+    }
+
+    if (response.hallucinationRisk === "High") {
+      await logEvent(supabase, {
+        traceId: params.traceId,
+        eventName: "hallucination_detected",
+        studentId: params.studentId,
+        conversationId: params.conversationId,
+        payload: { sourceAgent: params.sourceAgent, groundedness: response.groundedness },
+      });
+    }
+  } catch (err) {
+    await logEvent(supabase, {
+      traceId: params.traceId,
+      eventName: "evaluation_failed",
+      studentId: params.studentId,
+      conversationId: params.conversationId,
+      payload: {
+        sourceAgent: params.sourceAgent,
+        reason: err instanceof Error ? err.message : "unknown_error",
+      },
+    });
+  }
 }

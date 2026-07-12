@@ -93,6 +93,8 @@ Split in practice once M8 was built and each component was checked against its o
 
 M9's active scope is now Safety Agent (full) + Evaluation Agent. Observability Agent is a natural fast-follow once Evaluation Agent exists, not bundled into the same implementation pass. Voice Agent is out of scope with no target milestone.
 
+**Implemented 2026-07-12** — see [M9-01](docs/implementation/M9-01-Safety-Evaluation-Agents.md). Safety Agent is a two-layer gate (M0's keyword filter, then a new Claude call for the remaining applicable categories) running before Router Agent; enforces Allow/Block only, fails closed (not open) on its own failure -- the one deliberate exception to this codebase's fail-open convention. Evaluation Agent scores every Concept/Practice/Assessment interaction internally (never shown to the student), with Safety implemented as a hard ceiling on `overallScore` and `efficiency`/`overallScore`/`qualityStatus`/`hallucinationRisk` all computed deterministically rather than asked of the model.
+
 ---
 
 ## Known gaps this roadmap surfaced

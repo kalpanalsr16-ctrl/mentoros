@@ -2,7 +2,10 @@ export type SafetyCategory =
   | "self_harm"
   | "violence"
   | "sexual_content"
-  | "prompt_injection";
+  | "prompt_injection"
+  | "academic_integrity"
+  | "privacy_concern"
+  | "platform_abuse";
 
 export type SafetyCheckResult =
   | { safe: true }
@@ -14,19 +17,15 @@ type UnsafePattern = {
 };
 
 /**
- * Baseline, keyword-based safety filter for Milestone M0.
- *
- * This is intentionally simple: deterministic pattern matching, no AI
- * model involved. MentorOS has no LLM integration until Milestone M1
- * (per 06_Technical_Architecture.md, the LLM provider is only "set up"
- * in M0 -- account and key -- and isn't actually called until M1), so
- * the M0 filter can't be an AI classifier even if that would eventually
- * be more accurate.
- *
- * The full Safety Agent spec (05_Agent_Architecture/03_Safety_Agent.md --
- * prompt injection defense, academic integrity, age-appropriateness,
- * risk-level escalation) is implemented properly in Milestone M9, once
- * real usage patterns exist to design against instead of guessing.
+ * Baseline, keyword-based safety filter, originally built in M0 as a
+ * placeholder and now Layer 1 of M9's two-layer Safety Agent (see
+ * lib/agents/safety-agent.ts) -- deterministic, zero-cost, zero-latency,
+ * and per 11_Policy_Engine.md's explicit requirement, the confirmed
+ * floor full Safety Agent "must not regress below." Only covers the four
+ * categories below; academic_integrity/privacy_concern/platform_abuse
+ * (added in M9) have no keyword-pattern equivalent -- those are only
+ * ever produced by Layer 2's LLM-based check, which runs when this
+ * filter doesn't already flag the message.
  */
 const UNSAFE_PATTERNS: UnsafePattern[] = [
   {
@@ -74,8 +73,13 @@ export function buildSafetyDeclineMessage(category: SafetyCategory): string {
       return "I'm really concerned about what you shared, and I want you to be okay. I'm not able to help with this myself, but please tell a trusted adult right away — a parent, teacher, or school counselor — or reach out to a local crisis helpline. You deserve real support, not just a chat with me.";
     case "prompt_injection":
       return "I can't do that. I'm MentorOS, here to help you learn — what would you like to work on?";
+    case "academic_integrity":
+      return "I want to help you actually learn this, not just hand you the answer — let's work through it together with a hint or two instead. What part are you stuck on?";
+    case "privacy_concern":
+      return "I can't share that. Let's get back to your math questions — what would you like to work on?";
     case "violence":
     case "sexual_content":
+    case "platform_abuse":
     default:
       return "I can't help with that here. Let's get back to your math questions — what would you like to work on?";
   }
