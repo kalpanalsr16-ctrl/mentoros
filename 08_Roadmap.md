@@ -84,22 +84,24 @@ Bundled for the same reason as M7: Memory cannot be meaningfully tested without 
 
 ## M9 — Safety Agent (full) + Evaluation Agent + Observability Agent + Voice Agent
 
-- **Safety Agent (full)** — the complete AI-driven safety layer (prompt-injection defense, academic integrity, age-appropriateness, risk escalation), superseding M0's deterministic baseline filter. Deliberately last: it is technically buildable as early as M2 (only depends on Context + Router + a Policy Engine that doesn't exist yet), but is intentionally deferred until real usage patterns exist to design it against rather than guessing.
-- **Evaluation Agent** — depends on Knowledge Retrieval, Concept, Assessment, Reflection all existing (M5–M8), plus an Evaluation Framework document that is also currently empty on disk (`07_Evaluation_Framework.md`) and needs to be written before this agent can be scoped.
-- **Observability Agent** — depends on every other agent existing, by definition last.
-- **Voice Agent** — no spec file currently exists in `05_Agent_Architecture/` at all (only referenced in the catalog and architecture diagram); placed last as the interaction-layer capability least coupled to the teaching pipeline's correctness.
+Split in practice once M8 was built and each component was checked against its own spec's Dependencies section (2026-07-12):
 
-This is the most heavily bundled milestone in this roadmap and the one most likely to need splitting once M7/M8 are actually built — see the M7 reminder above.
+- **Safety Agent (full)** — was blocked on a Policy Engine document that didn't exist; drafted [11_Policy_Engine.md](11_Policy_Engine.md) and reviewed with the product owner. Now in active scope for M9. Key decisions: Safety Agent runs **before** Router Agent (the first agent to touch any message; `03_Safety_Agent.md` updated to match), and enforces exactly two outcomes — **Allow** or **Block** — with the originally-described "constrain the response" (Medium-risk) behavior explicitly deferred, since the routing/prompt-transformation plumbing it needs doesn't exist yet.
+- **Evaluation Agent** — was blocked on an Evaluation Framework document that was empty on disk; drafted [07_Evaluation_Framework.md](07_Evaluation_Framework.md) and reviewed with the product owner. Now in active scope for M9. Key decision: Safety **overrides** every other quality dimension in `overall_score` (a gate/ceiling, not just a weight) — MentorOS is a child-focused educational platform, and a safety failure cannot be averaged away by an otherwise-excellent response.
+- **Observability Agent** — depends on Evaluation Agent existing (per its own Dependencies section), so it naturally follows once Evaluation Agent ships; `10_Observability.md` remains unwritten but the product owner confirmed (2026-07-12) that's a later task, not a blocker for the rest of M9.
+- **Voice Agent** — no spec file exists; product owner confirmed (2026-07-12) to keep it deferred indefinitely, not designed or implemented as part of M9.
+
+M9's active scope is now Safety Agent (full) + Evaluation Agent. Observability Agent is a natural fast-follow once Evaluation Agent exists, not bundled into the same implementation pass. Voice Agent is out of scope with no target milestone.
 
 ---
 
 ## Known gaps this roadmap surfaced
 
-- ~~`07_Evaluation_Framework.md` — empty; needed before M9's Evaluation Agent can be scoped.~~ Drafted 2026-07-12 ([07_Evaluation_Framework.md](07_Evaluation_Framework.md)), grounded in what `13_Evaluation_Agent.md` already references — pending product owner review before M9's Evaluation Agent is implemented against it.
-- `10_Observability.md` — still empty; platform-wide observability strategy, distinct from the Observability Agent spec. Not a formal blocker the way the other three gaps are — `14_Observability_Agent.md`'s own Dependencies section names "Every AI Agent, Event Stream, Evaluation Agent, Session State," not this document — but still worth authoring before treating Observability Agent as fully scoped.
+- ~~`07_Evaluation_Framework.md` — empty; needed before M9's Evaluation Agent can be scoped.~~ Drafted and reviewed 2026-07-12 ([07_Evaluation_Framework.md](07_Evaluation_Framework.md)) — Safety-overrides-everything decision incorporated; one open question remains (Teaching Effectiveness's retroactive scoring; Diagnostic-turn Groundedness exclusion).
+- `10_Observability.md` — still empty; platform-wide observability strategy, distinct from the Observability Agent spec. Product owner confirmed (2026-07-12) this is a later task, not a blocker for M9.
 - ~~No Curriculum Graph document~~ — resolved: [09_Curriculum_Foundation.md](09_Curriculum_Foundation.md) defines the model. Still open before M3 can start: its Postgres migration and real content population (NCERT Class 3 Mathematics as the first dataset).
-- ~~No Policy Engine document — needed before M9's Safety Agent.~~ Drafted 2026-07-12 ([11_Policy_Engine.md](11_Policy_Engine.md)), grounded in `03_Safety_Agent.md`'s existing Safety Categories/Risk Levels sections — pending product owner review, with three open questions flagged in the document itself (age-band granularity, whether Medium-risk response constraints are wireable today, and an apparent tension between Safety Agent's Decision Logic ordering and its stated Dependency on Router Agent).
-- No Voice Agent spec file — needed before M9's Voice Agent work. Deliberately not drafted (2026-07-12): a product spec, not a technical framework document — requires a product decision on scope/interaction model this project's process shouldn't make unilaterally.
+- ~~No Policy Engine document — needed before M9's Safety Agent.~~ Drafted and reviewed 2026-07-12 ([11_Policy_Engine.md](11_Policy_Engine.md)) — pipeline ordering (Safety before Router) and enforcement scope (Allow/Block only, constrained responses deferred) both decided; one open question remains (age-band granularity).
+- No Voice Agent spec file — needed before M9's Voice Agent work. Product owner confirmed (2026-07-12): stays deferred indefinitely, not designed or implemented.
 
 ## Reconstruction note
 

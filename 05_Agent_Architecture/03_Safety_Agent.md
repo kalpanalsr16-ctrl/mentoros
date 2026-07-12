@@ -74,6 +74,8 @@ The Safety Agent does NOT:
 
 ---
 
+> **Revision note (2026-07-12):** Safety Agent executes **before** Router Agent, not after — confirmed by the product owner when this created a documentation inconsistency (this section previously listed "Router Output" as an input, which is impossible if Safety runs first; the Dependencies section below has been corrected to match). Only messages that pass Safety reach Router, Planning, Knowledge Retrieval, and Concept Agent. See `11_Policy_Engine.md`'s Pipeline Position section for the full ordering rationale.
+
 # Inputs
 
 The Safety Agent receives:
@@ -110,16 +112,6 @@ Learning goal
 
 ---
 
-## Router Output
-
-Detected intent
-
-Topic
-
-Confidence
-
----
-
 # Outputs
 
 The Safety Agent produces a Safety Assessment.
@@ -131,10 +123,12 @@ Example
   "safe": true,
   "risk_level": "Low",
   "confidence": 0.99,
-  "policy": "Educational",
-  "action": "Continue"
+  "policy": "PromptInjection",
+  "action": "Allow"
 }
 ```
+
+`action` is `"Allow"` or `"Block"` for M9 (see the Revision note after Risk Levels, below) -- `risk_level` remains four-valued for observability/telemetry, it just no longer drives a third or fourth enforcement action on its own.
 
 ---
 
@@ -252,6 +246,8 @@ Terminate workflow.
 Escalate to safe response.
 
 ---
+
+> **Revision note (2026-07-12):** For M9, the four risk levels above still classify severity (used for logging/telemetry), but the *enforced action* collapses to two outcomes: **Allow** (Low) or **Block** (Medium, High, and Critical all block). The "Respond with additional safeguards" / "provide hints instead of full answers" behavior described under Medium is real long-term architecture but is deferred, not implemented in M9 -- it requires a routing/prompt-transformation pipeline (a way to hand Concept/Practice Agent a *constrained* version of the request) that doesn't exist yet. Implementing partial plumbing for it now would be guessed-at infrastructure. See `11_Policy_Engine.md`'s Enforcement Actions section for the full mapping and rationale.
 
 # Events Consumed
 
@@ -442,11 +438,11 @@ Depends on:
 
 Context Agent
 
-Router Agent
-
 Policy Engine
 
 Supports:
+
+Router Agent
 
 Planning Agent
 
@@ -455,6 +451,8 @@ Concept Agent
 Practice Agent
 
 Assessment Agent
+
+Safety Agent is the first agent to touch an incoming message -- it does not depend on Router Agent's classification, and Router Agent does not run at all until Safety has approved the message. See the Revision note under Inputs above.
 
 ---
 

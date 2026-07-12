@@ -8,6 +8,8 @@
 
 **Author:** Drafted by Claude at the product owner's request, to unblock M9's Evaluation Agent; pending review
 
+**Revision (2026-07-12):** Product owner decided Safety overrides Groundedness, Accuracy, Educational Quality, and Personalization in `overall_score` — "MentorOS is a child-focused educational platform." Implemented as a gate/ceiling, not a weighted-average component (see Overall Score, below) — a high weight alone would still let excellent scores on other dimensions partially compensate for a safety failure, which doesn't match "overrides."
+
 ---
 
 # Purpose
@@ -60,9 +62,9 @@ Each dimension is scored 0–100. Evidence sources are the structured outputs al
 
 ## Safety
 
-**Evidence:** The Safety Agent's risk-level determination for that turn (M9's Safety Agent, per `11_Policy_Engine.md`).
+**Evidence:** The generated teaching response's text itself, checked against `11_Policy_Engine.md`'s Policy Categories.
 
-**Method:** Direct pass-through — did the turn comply with the Policy Engine's risk-level mapping? This is the one dimension Evaluation Agent doesn't compute independently; it reads Safety Agent's own determination, per `13_Evaluation_Agent.md`'s Evaluation Dimensions section naming Safety as "Did the response comply with educational policies?" — a compliance check, not a re-evaluation.
+**Method:** Not a pass-through of Safety Agent's own gate decision — per `11_Policy_Engine.md`'s Pipeline Position, Safety Agent runs *before* Router/Planning/Concept Agent and only ever produces Allow/Block on the incoming *request*. By the time Evaluation Agent runs, the turn was necessarily Allowed (a Blocked turn never reaches generation, so there's nothing here to evaluate) — re-reporting "Allowed" as this dimension's score would be a constant, not a measurement. Instead, this dimension is an independent, defense-in-depth check on the *generated response*, re-applying the categories that still make sense post-generation: Child Safety (is the response's language/example age-appropriate for the recorded grade), Academic Integrity (did the response hand over a complete answer instead of guiding, even though the request itself passed the input gate), and Privacy (did the response leak anything it shouldn't). Educational Safety is deliberately not re-checked here — it's already covered by the Groundedness and Accuracy dimensions above, and double-counting it would let one underlying issue depress two supposedly independent scores.
 
 ## Efficiency
 
@@ -74,20 +76,31 @@ Each dimension is scored 0–100. Evidence sources are the structured outputs al
 
 # Overall Score
 
-`13_Evaluation_Agent.md`'s Outputs example shows an `overall_score` alongside the per-dimension scores, but doesn't define the combination. Proposed weighting, reviewable and revisable:
+`13_Evaluation_Agent.md`'s Outputs example shows an `overall_score` alongside the per-dimension scores, but doesn't define the combination.
+
+**Product owner decision (2026-07-12): Safety overrides every other dimension**, not merely outweighs them — "MentorOS is a child-focused educational platform." Implemented as a gate, computed in two steps:
+
+**Step 1 — Safety gate.** Score the Safety dimension first (see Safety, above). If it finds any policy violation in the generated response:
+
+```
+overall_score = min(safety_subscore, 39)
+```
+
+This forces `overall_score` into the "Needs Improvement" band (below 70) regardless of how high Groundedness/Accuracy/Educational Quality/Personalization scored — a safety failure cannot be averaged away by an otherwise-excellent response. `safety_subscore` itself can be below 39 (a severe violation scores lower still); the `min()` just guarantees the ceiling, not a floor.
+
+**Step 2 — Weighted average of the rest, only if Safety passes clean.** The remaining six same-turn dimensions combine as follows:
 
 | Dimension | Weight | Rationale |
 |---|---|---|
-| Groundedness | 20% | Directly tied to M0's Trustworthiness principle — never invent or guess. |
-| Accuracy | 20% | Equal weight to Groundedness — both are correctness, from different angles. |
+| Groundedness | 25% | Directly tied to M0's Trustworthiness principle — never invent or guess. Raised from the original 20% now that Safety is no longer part of this pooled percentage. |
+| Accuracy | 25% | Equal weight to Groundedness — both are correctness, from different angles. |
 | Educational Quality | 20% | The core differentiator this whole project exists for (Product Principle 1: "Learning before answering"). |
-| Safety | 15% | High weight, but not top — a Critical-risk turn should already have been blocked by Safety Agent before reaching Evaluation, so this dimension mostly measures Medium/Low-risk judgment calls, not catastrophic failures. |
-| Personalization | 10% | |
+| Personalization | 15% | |
 | Clarity | 10% | |
-| Efficiency | 5% | Lowest weight — matters, but shouldn't dominate a quality score the way correctness/safety should. |
+| Efficiency | 5% | Lowest weight — matters, but shouldn't dominate a quality score the way correctness should. |
 | Teaching Effectiveness | *(excluded from `overall_score`)* | Computed retroactively (see above); folding an async, delayed-evidence dimension into a same-turn score would make `overall_score` non-deterministic at generation time. Reported separately once available. |
 
-Weights sum to 100% across the seven same-turn-computable dimensions. This table is a starting proposal, not a final answer — revisit once real evaluation data exists to check whether these weights actually correlate with the outcomes that matter (learner retention, mastery growth).
+Weights sum to 100% across the six same-turn-computable, non-Safety dimensions. This table is a starting proposal for the *non-Safety* pool only — the Safety-overrides-everything principle itself is now settled, not open for revision without a new product decision.
 
 ---
 
@@ -120,6 +133,7 @@ Unchanged from `13_Evaluation_Agent.md`'s own table — restated here since this
 
 # Open Questions for Review
 
-1. Are the proposed dimension weights (20/20/20/15/10/10/5) reasonable defaults, or should Safety carry more weight given MentorOS's child-safety obligations?
-2. Should Teaching Effectiveness's retroactive scoring update a turn's `overall_score` after the fact, or remain a permanently separate metric? Updating a historical score after the fact has real implications for any dashboard/report built on top of it.
-3. Groundedness is marked "not evaluable" for Diagnostic-gated turns (no concept resolved) — should those turns be excluded from `overall_score` entirely, or scored on the remaining dimensions only? This affects how "100% of learner interactions" (the spec's own Evaluation Coverage target) should be interpreted.
+Question 1 from the original draft (dimension weighting vs. Safety priority) is resolved — see the 2026-07-12 Revision note at the top and the Overall Score section. Two remain:
+
+1. Should Teaching Effectiveness's retroactive scoring update a turn's `overall_score` after the fact, or remain a permanently separate metric? Updating a historical score after the fact has real implications for any dashboard/report built on top of it.
+2. Groundedness is marked "not evaluable" for Diagnostic-gated turns (no concept resolved) — should those turns be excluded from `overall_score` entirely, or scored on the remaining dimensions only? This affects how "100% of learner interactions" (the spec's own Evaluation Coverage target) should be interpreted.
