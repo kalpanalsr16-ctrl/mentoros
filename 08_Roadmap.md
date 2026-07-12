@@ -1,6 +1,8 @@
 # MentorOS Engineering Roadmap (M0–M9)
 
-**Status:** Reconstructed 2026-07-10 during the M0 gate review. This file was found empty (0 bytes) on disk at that point, despite being named as the source of truth for milestone sequencing in `CLAUDE.md`. Milestone boundaries below are grounded in the actual "Dependencies" section of every file in [05_Agent_Architecture/](05_Agent_Architecture/), not recovered verbatim text — see the note at the end of this file.
+**Status:** ✅ **CLOSED — 2026-07-13.** M0 through M9 is the entire scope this roadmap ever defined. There is no M10: no spec, no dependency entry, no product-owner decision anywhere in this repository names a tenth milestone. Development against this roadmap is formally closed as of tag `v1.0.0-foundation`; see the **Development Closure** section at the end of this file for the full closing statement. Any further work is a new, separately-scoped initiative, not a continuation of M0–M9.
+
+**Reconstruction history:** Reconstructed 2026-07-10 during the M0 gate review. This file was found empty (0 bytes) on disk at that point, despite being named as the source of truth for milestone sequencing in `CLAUDE.md`. Milestone boundaries below are grounded in the actual "Dependencies" section of every file in [05_Agent_Architecture/](05_Agent_Architecture/), not recovered verbatim text — see the Reconstruction note further down.
 
 ---
 
@@ -108,3 +110,39 @@ M9's active scope is now Safety Agent (full) + Evaluation Agent. Observability A
 ## Reconstruction note
 
 This file was rebuilt during the M0 gate review after being found empty. M0's scope and M9's "Safety Agent last" placement are recalled directly from the original planning conversation; every other milestone boundary (M1–M8) was derived from the dependency graph in `05_Agent_Architecture/`, not recovered from the original text. Reviewed and accepted as-is by the product owner on 2026-07-10, with an explicit flag to revisit at M7.
+
+---
+
+## Development Closure — 2026-07-13
+
+**There is no M10.** Checked directly, not assumed: [05_Agent_Architecture/](05_Agent_Architecture/) contains 13 numbered agent specs (`02` through `14`), every one of which is either implemented (Context, Router, Planning, Personalization, Knowledge Retrieval, Concept, Practice, Assessment, Reflection, Memory, Safety, Evaluation, Observability) or explicitly, deliberately deferred with no spec file at all (Voice Agent). No document in this repository — this roadmap, any agent spec, any implementation doc — names or implies a tenth milestone. M9 was always this roadmap's last entry.
+
+**Final status of every milestone:**
+
+| Milestone | Status |
+|---|---|
+| M0 — Foundation | ✅ Complete |
+| M1 — Context Agent | ✅ Complete |
+| M2 — Router Agent | ✅ Complete |
+| M3 — Planning Agent | ✅ Complete |
+| M4 — Personalization Agent | ✅ Complete |
+| M5 — Knowledge Retrieval Agent | ✅ Complete |
+| M6 — Concept Agent (v1) | ✅ Complete |
+| M7 — Practice + Assessment Agents | ✅ Complete |
+| M8 — Reflection + Memory Agents | ✅ Complete |
+| M9 — Safety + Evaluation + Observability Agents | ✅ Complete |
+
+**Closing verification:** the [M0–M9 Production Verification Sweep](docs/implementation/M0-M9-Production-Verification-Sweep.md) confirmed every milestone live against the real staging environment (build, lint, 176-assertion regression suite, RLS/pipeline code audit, and a full authenticated end-to-end pass through the real chat pipeline). The [Token-Logging Housekeeping Pass](docs/implementation/Token-Logging-Housekeeping.md) closed the last known observability gap. Tagged `v1.0.0-foundation`; see [CHANGELOG.md](CHANGELOG.md) for the milestone-by-milestone summary.
+
+**Deliberately out of scope, not oversights** — carried forward as open items for whatever initiative picks them up next, not silently dropped:
+
+- **Voice Agent** — no spec file; product owner confirmed indefinitely deferred (M9 decision, 2026-07-12).
+- **Constrained Responses** (graduated Medium-risk action) — Safety Agent enforces Allow/Block only; the routing/prompt-transformation plumbing this needs doesn't exist.
+- **Semantic/embedding-based concept retrieval** — M5 shipped trigram search as the interim; revisit once curriculum scale makes its limits a felt problem.
+- **Full 11-category Learner Profile Model** ([12_Learner_Profile_Model.md](12_Learner_Profile_Model.md)) — M8 only implements the mastery/confidence/grade/goals/style subset `LearnerState` already models.
+- **`10_Observability.md`** — platform-wide observability strategy, distinct from the Observability Agent spec; still a 0-byte file. Confirmed a later task, not a blocker, throughout M9.
+- **Age-band granularity** in the Policy Engine's Child Safety category — one open question in [11_Policy_Engine.md](11_Policy_Engine.md).
+- **Teaching Effectiveness's retroactive scoring / Diagnostic-turn Groundedness exclusion** — one open question in [07_Evaluation_Framework.md](07_Evaluation_Framework.md).
+- **The `messages` table RLS gap** found during the Production Verification Sweep — INSERT policy checks conversation ownership only, not `role`, so a student's own client could in principle insert a fabricated `assistant`-role row. Low blast radius (self-only), flagged as a recommendation, not fixed as part of this roadmap's scope.
+
+**What this means going forward:** this roadmap is closed, not paused. Any future milestone is a new initiative requiring its own scoping, documentation, and product-owner decisions — per `CLAUDE.md`'s standing rule, nothing beyond this point should be built by inferring intent from what came before.
