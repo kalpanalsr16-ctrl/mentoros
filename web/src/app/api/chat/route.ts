@@ -11,6 +11,7 @@ import {
   generateAssessment,
   generateReflection,
   generateEvaluation,
+  estimateCostUsd,
   type ConceptAgentResult,
   type PracticeAgentResult,
   type AssessmentAgentResult,
@@ -197,7 +198,27 @@ export async function POST(request: Request) {
   // Actions), fails CLOSED (not open) on its own Layer 2 call failure --
   // see safety-agent.ts's doc comment for why this is the one
   // intentional exception to this codebase's fail-open convention.
+  const safetyStartedAt = Date.now();
   const safetyAssessment = await evaluateSafety(history, layer1Result, classifySafetyWithClaude);
+  const safetyLatencyMs = Date.now() - safetyStartedAt;
+
+  // model/inputTokens/outputTokens are only present when Layer 2's Claude
+  // call actually ran and succeeded -- undefined (and omitted below) when
+  // Layer 1 alone decided the outcome, so this event never claims a cost
+  // that wasn't actually incurred.
+  const safetyCallMetadata =
+    safetyAssessment.model !== undefined
+      ? {
+          model: safetyAssessment.model,
+          inputTokens: safetyAssessment.inputTokens,
+          outputTokens: safetyAssessment.outputTokens,
+          estimatedCostUsd: estimateCostUsd(
+            safetyAssessment.inputTokens!,
+            safetyAssessment.outputTokens!,
+          ),
+          latencyMs: safetyLatencyMs,
+        }
+      : { latencyMs: safetyLatencyMs };
 
   await logEvent(supabase, {
     traceId,
@@ -205,12 +226,13 @@ export async function POST(request: Request) {
     studentId,
     conversationId: activeConversationId,
     payload: safetyAssessment.safe
-      ? { contentLength: content.length }
+      ? { contentLength: content.length, ...safetyCallMetadata }
       : {
           category: safetyAssessment.category,
           riskLevel: safetyAssessment.riskLevel,
           confidence: safetyAssessment.confidence,
           contentLength: content.length,
+          ...safetyCallMetadata,
         },
   });
 
@@ -230,7 +252,9 @@ export async function POST(request: Request) {
     // runs unchanged. A router failure fails open into that same M1 path
     // rather than blocking the message, since routing is an enhancement
     // layered on top of M1, not a new hard dependency of the chat route.
+    const routerStartedAt = Date.now();
     const routerResult = await classifyIntent(history, classifyIntentWithClaude);
+    const routerLatencyMs = Date.now() - routerStartedAt;
 
     if (routerResult.success) {
       await logEvent(supabase, {
@@ -246,6 +270,10 @@ export async function POST(request: Request) {
           subtopic: routerResult.intent.subtopic,
           clarificationRequired: routerResult.intent.needsClarification,
           model: routerResult.model,
+          inputTokens: routerResult.inputTokens,
+          outputTokens: routerResult.outputTokens,
+          estimatedCostUsd: estimateCostUsd(routerResult.inputTokens, routerResult.outputTokens),
+          latencyMs: routerLatencyMs,
         },
       });
     } else {
@@ -254,7 +282,7 @@ export async function POST(request: Request) {
         eventName: "routing_failed",
         studentId,
         conversationId: activeConversationId,
-        payload: { reason: routerResult.reason },
+        payload: { reason: routerResult.reason, latencyMs: routerLatencyMs },
       });
     }
 
@@ -436,6 +464,9 @@ export async function POST(request: Request) {
             model: practiceResult.model,
             difficulty: practiceResult.response.difficulty,
             questionCount: practiceResult.response.questions.length,
+            inputTokens: practiceResult.inputTokens,
+            outputTokens: practiceResult.outputTokens,
+            estimatedCostUsd: estimateCostUsd(practiceResult.inputTokens, practiceResult.outputTokens),
             latencyMs: llmLatencyMs,
           },
         });
@@ -465,6 +496,9 @@ export async function POST(request: Request) {
             status: assessmentResult.response.status,
             recommendedNextStep: assessmentResult.response.recommendedNextStep,
             misconceptionCount: assessmentResult.response.misconceptions.length,
+            inputTokens: assessmentResult.inputTokens,
+            outputTokens: assessmentResult.outputTokens,
+            estimatedCostUsd: estimateCostUsd(assessmentResult.inputTokens, assessmentResult.outputTokens),
             latencyMs: llmLatencyMs,
           },
         });
@@ -498,7 +532,9 @@ export async function POST(request: Request) {
             learnerState: planningContext?.learnerState ?? { isKnown: false },
             history,
           };
+          const reflectionStartedAt = Date.now();
           const reflectionResult = await reflectOnSession(reflectionAgentContext, generateReflection);
+          const reflectionLatencyMs = Date.now() - reflectionStartedAt;
 
           if (reflectionResult.success) {
             await logEvent(supabase, {
@@ -511,6 +547,13 @@ export async function POST(request: Request) {
                 learningStatus: reflectionResult.response.learningStatus,
                 confidence: reflectionResult.response.confidence,
                 recommendedAction: reflectionResult.response.recommendedAction,
+                inputTokens: reflectionResult.inputTokens,
+                outputTokens: reflectionResult.outputTokens,
+                estimatedCostUsd: estimateCostUsd(
+                  reflectionResult.inputTokens,
+                  reflectionResult.outputTokens,
+                ),
+                latencyMs: reflectionLatencyMs,
               },
             });
           } else {
@@ -519,7 +562,7 @@ export async function POST(request: Request) {
               eventName: "reflection_failed",
               studentId,
               conversationId: activeConversationId,
-              payload: { reason: reflectionResult.reason },
+              payload: { reason: reflectionResult.reason, latencyMs: reflectionLatencyMs },
             });
           }
 
@@ -564,6 +607,9 @@ export async function POST(request: Request) {
             model: conceptResult.model,
             nextStep: conceptResult.response.nextStep,
             confidence: conceptResult.response.confidence,
+            inputTokens: conceptResult.inputTokens,
+            outputTokens: conceptResult.outputTokens,
+            estimatedCostUsd: estimateCostUsd(conceptResult.inputTokens, conceptResult.outputTokens),
             latencyMs: llmLatencyMs,
           },
         });
@@ -631,6 +677,7 @@ export async function POST(request: Request) {
                 model: llmResult.model,
                 inputTokens: llmResult.inputTokens,
                 outputTokens: llmResult.outputTokens,
+                estimatedCostUsd: estimateCostUsd(llmResult.inputTokens, llmResult.outputTokens),
                 latencyMs: Date.now() - llmStartedAt,
               }
             : { reason: llmResult.reason, latencyMs: Date.now() - llmStartedAt },
@@ -741,7 +788,9 @@ async function runEvaluationAgent(
       latencyMs: params.latencyMs,
       history: params.history,
     };
+    const evaluationStartedAt = Date.now();
     const evaluationResult = await evaluateInteraction(evaluationContext, generateEvaluation);
+    const evaluationLatencyMs = Date.now() - evaluationStartedAt;
 
     if (!evaluationResult.success) {
       await logEvent(supabase, {
@@ -749,7 +798,11 @@ async function runEvaluationAgent(
         eventName: "evaluation_failed",
         studentId: params.studentId,
         conversationId: params.conversationId,
-        payload: { sourceAgent: params.sourceAgent, reason: evaluationResult.reason },
+        payload: {
+          sourceAgent: params.sourceAgent,
+          reason: evaluationResult.reason,
+          evaluationLatencyMs,
+        },
       });
       return;
     }
@@ -769,6 +822,14 @@ async function runEvaluationAgent(
         groundedness: response.groundedness,
         safety: response.safety,
         hallucinationRisk: response.hallucinationRisk,
+        // Evaluation's OWN call metadata -- distinct from `params.latencyMs`
+        // above, which is the *source* agent's (Concept/Practice/
+        // Assessment) latency that Evaluation's efficiency score is
+        // computed from, not Evaluation's own cost to run.
+        evaluationInputTokens: evaluationResult.inputTokens,
+        evaluationOutputTokens: evaluationResult.outputTokens,
+        evaluationCostUsd: estimateCostUsd(evaluationResult.inputTokens, evaluationResult.outputTokens),
+        evaluationLatencyMs,
       },
     });
 

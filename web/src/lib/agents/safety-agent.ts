@@ -16,6 +16,12 @@ export type SafetyAssessment = {
   category?: SafetyCategory;
   confidence: number;
   action: "Allow" | "Block";
+  // Only present when Layer 2 (the Claude call) actually ran and
+  // succeeded -- absent when Layer 1 alone decided the outcome, or when
+  // Layer 2's own call failed (the fail-closed branch below).
+  model?: string;
+  inputTokens?: number;
+  outputTokens?: number;
 };
 
 /**
@@ -87,7 +93,7 @@ export async function evaluateSafety(
     };
   }
 
-  const { classification } = result;
+  const { classification, model, inputTokens, outputTokens } = result;
   const action = deriveSafetyAction(classification.riskLevel);
 
   return {
@@ -96,5 +102,8 @@ export async function evaluateSafety(
     category: classification.category ?? undefined,
     confidence: classification.confidence,
     action,
+    model,
+    inputTokens,
+    outputTokens,
   };
 }

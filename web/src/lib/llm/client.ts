@@ -38,6 +38,27 @@ const anthropic = new Anthropic();
 const MODEL = "claude-opus-4-8";
 const MAX_TOKENS = 1024;
 
+// Per-1M-token pricing for MODEL above -- the single source of truth
+// observability-agent.ts intentionally keeps its own copy of (see that
+// file's doc comment: avoiding a runtime dependency on the Anthropic SDK
+// from a read-only reporting module). Update both if MODEL ever changes.
+const INPUT_COST_PER_MILLION_TOKENS_USD = 5;
+const OUTPUT_COST_PER_MILLION_TOKENS_USD = 25;
+
+/**
+ * Shared by every agent's event-logging call in route.ts so "estimated
+ * cost" is computed identically everywhere, not reimplemented per call
+ * site -- the token-logging housekeeping pass this function exists for
+ * is specifically about making model/tokens/latency/cost consistent
+ * across every LLM-based agent, not just adding the fields ad hoc.
+ */
+export function estimateCostUsd(inputTokens: number, outputTokens: number): number {
+  return (
+    (inputTokens / 1_000_000) * INPUT_COST_PER_MILLION_TOKENS_USD +
+    (outputTokens / 1_000_000) * OUTPUT_COST_PER_MILLION_TOKENS_USD
+  );
+}
+
 /**
  * Grounded directly in 00_Product_Principles.md, not invented. M1 has no
  * Router/Planning/Personalization/Knowledge Retrieval agent yet (those are
@@ -172,7 +193,13 @@ const RouterClassificationSchema = z.object({
 export type RouterClassification = z.infer<typeof RouterClassificationSchema>;
 
 export type RouterClassificationResult =
-  | { success: true; classification: RouterClassification; model: string }
+  | {
+      success: true;
+      classification: RouterClassification;
+      model: string;
+      inputTokens: number;
+      outputTokens: number;
+    }
   | { success: false; reason: string };
 
 /**
@@ -202,6 +229,8 @@ export async function classifyIntentWithClaude(
       success: true,
       classification: response.parsed_output,
       model: response.model,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
     };
   } catch (err) {
     if (err instanceof Anthropic.RateLimitError) {
@@ -272,7 +301,13 @@ const SafetyClassificationSchema = z.object({
 export type SafetyClassification = z.infer<typeof SafetyClassificationSchema>;
 
 export type SafetyClassificationResult =
-  | { success: true; classification: SafetyClassification; model: string }
+  | {
+      success: true;
+      classification: SafetyClassification;
+      model: string;
+      inputTokens: number;
+      outputTokens: number;
+    }
   | { success: false; reason: string };
 
 /**
@@ -301,6 +336,8 @@ export async function classifySafetyWithClaude(
       success: true,
       classification: response.parsed_output,
       model: response.model,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
     };
   } catch (err) {
     if (err instanceof Anthropic.RateLimitError) {
@@ -335,7 +372,13 @@ const TeachingResponseSchema = z.object({
 });
 
 export type ConceptAgentResult =
-  | { success: true; response: TeachingResponse; model: string }
+  | {
+      success: true;
+      response: TeachingResponse;
+      model: string;
+      inputTokens: number;
+      outputTokens: number;
+    }
   | { success: false; reason: string };
 
 /**
@@ -368,6 +411,8 @@ export async function generateConceptExplanation(
       success: true,
       response: response.parsed_output,
       model: response.model,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
     };
   } catch (err) {
     if (err instanceof Anthropic.RateLimitError) {
@@ -399,7 +444,13 @@ const PracticeSetSchema = z.object({
 });
 
 export type PracticeAgentResult =
-  | { success: true; response: PracticeSet; model: string }
+  | {
+      success: true;
+      response: PracticeSet;
+      model: string;
+      inputTokens: number;
+      outputTokens: number;
+    }
   | { success: false; reason: string };
 
 /**
@@ -429,6 +480,8 @@ export async function generatePracticeSet(
       success: true,
       response: response.parsed_output,
       model: response.model,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
     };
   } catch (err) {
     if (err instanceof Anthropic.RateLimitError) {
@@ -467,7 +520,13 @@ const AssessmentReportSchema = z.object({
 });
 
 export type AssessmentAgentResult =
-  | { success: true; response: AssessmentReport; model: string }
+  | {
+      success: true;
+      response: AssessmentReport;
+      model: string;
+      inputTokens: number;
+      outputTokens: number;
+    }
   | { success: false; reason: string };
 
 /**
@@ -499,6 +558,8 @@ export async function generateAssessment(
         status: deriveMasteryStatus(response.parsed_output.masteryScore),
       },
       model: response.model,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
     };
   } catch (err) {
     if (err instanceof Anthropic.RateLimitError) {
@@ -538,7 +599,13 @@ const ReflectionReportSchema = z.object({
 });
 
 export type ReflectionAgentResult =
-  | { success: true; response: ReflectionReport; model: string }
+  | {
+      success: true;
+      response: ReflectionReport;
+      model: string;
+      inputTokens: number;
+      outputTokens: number;
+    }
   | { success: false; reason: string };
 
 /**
@@ -567,6 +634,8 @@ export async function generateReflection(
       success: true,
       response: response.parsed_output,
       model: response.model,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
     };
   } catch (err) {
     if (err instanceof Anthropic.RateLimitError) {
@@ -604,7 +673,13 @@ const EvaluationDimensionsSchema = z.object({
 });
 
 export type EvaluationAgentResult =
-  | { success: true; response: EvaluationReport; model: string }
+  | {
+      success: true;
+      response: EvaluationReport;
+      model: string;
+      inputTokens: number;
+      outputTokens: number;
+    }
   | { success: false; reason: string };
 
 /**
@@ -648,6 +723,8 @@ export async function generateEvaluation(
         hallucinationRisk: deriveHallucinationRisk(dims.groundedness),
       },
       model: response.model,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
     };
   } catch (err) {
     if (err instanceof Anthropic.RateLimitError) {

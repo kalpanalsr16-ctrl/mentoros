@@ -86,14 +86,14 @@ None. Reads the existing `events` table; no new columns, tables, or event names.
 
 ## Open Issues
 
-1. **Most agents don't log token usage.** Only `llm_call_succeeded` captures `inputTokens`/`outputTokens` today — `totalInputTokens`/`totalOutputTokens`/`estimatedCostUsd` are therefore incomplete for any trace where Concept/Practice/Assessment/Reflection/Evaluation ran instead. Fixing this means touching `lib/llm/client.ts`'s five other structured-output functions to capture and log `response.usage` — a real, contained follow-up, not done here to avoid scope creep into five already-shipped, tested milestones.
+1. ~~Most agents don't log token usage.~~ **Resolved 2026-07-13** — see [Token-Logging Housekeeping Pass](Token-Logging-Housekeeping.md). Every LLM-based agent (Router, Safety Layer 2, Concept, Practice, Assessment, Reflection, Evaluation) now logs `model`/`inputTokens`/`outputTokens`/`estimatedCostUsd`/`latencyMs` on its own event.
 2. **Not wired into any API route or admin surface** — needs a service-role client (or a new admin RLS policy on `events`) and an admin authentication model, neither of which exists. The aggregation logic is ready; the access path isn't built.
 3. **`workflow` inference is a first-pass heuristic**, not a formally modeled concept — revisit if a real "session type" abstraction is ever needed elsewhere.
 4. **Dashboards, real-time anomaly detection, and infrastructure metrics (cache/queue/infra health) remain entirely unimplemented** — all need infrastructure (an admin UI, a cache layer, a queue system, a scheduled job) that doesn't exist in this codebase and wasn't in scope for this pass.
-5. **Reflection/Memory/Evaluation's own events don't log their own call latency** (only the *source* agent's latency is logged in `evaluation_completed`, for example) — a smaller version of Open Issue 1, same underlying cause.
+5. ~~Reflection/Memory/Evaluation's own events don't log their own call latency.~~ **Resolved 2026-07-13** — `reflection_completed` now times its own call; `evaluation_completed` now logs `evaluationLatencyMs`/`evaluationInputTokens`/`evaluationOutputTokens`/`evaluationCostUsd` distinct from the source agent's own `latencyMs` (which Evaluation's efficiency score is computed from, and remains unchanged). Memory Agent has no LLM call of its own (pure deterministic merge, per M8), so there is nothing to log there.
 
 ---
 
 ## Next Task
 
-`08_Roadmap.md`'s originally-planned M0–M9 milestones are now all complete or explicitly scoped-and-deferred (Voice Agent). Next steps are either: (a) the housekeeping pass in Open Issue 1 (token logging across M6–M9's LLM calls), (b) a live authenticated verification pass across M5–M9 (the standing recommendation carried since M8), or (c) a genuinely new milestone the product owner wants to define — not something this roadmap already names.
+`08_Roadmap.md`'s originally-planned M0–M9 milestones are now all complete or explicitly scoped-and-deferred (Voice Agent). Both follow-ups named here were completed 2026-07-13: the [M0–M9 Production Verification Sweep](M0-M9-Production-Verification-Sweep.md) (live authenticated pass, confirmed by the product owner) and the [Token-Logging Housekeeping Pass](Token-Logging-Housekeeping.md) (Open Issues 1 and 5, above). Per the product owner's explicit sequencing, a genuinely new milestone beyond the original roadmap can now be defined.

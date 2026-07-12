@@ -14,7 +14,13 @@ const DEFAULT_CLARIFICATION_QUESTION =
   "Could you say a bit more about what you'd like help with?";
 
 export type RouterResult =
-  | { success: true; intent: IntentObject; model: string }
+  | {
+      success: true;
+      intent: IntentObject;
+      model: string;
+      inputTokens: number;
+      outputTokens: number;
+    }
   | { success: false; reason: string };
 
 /**
@@ -42,7 +48,7 @@ export async function classifyIntent(
     return result;
   }
 
-  const { classification, model } = result;
+  const { classification, model, inputTokens, outputTokens } = result;
   const needsClarification =
     classification.confidence < ROUTING_CONFIDENCE_THRESHOLD;
 
@@ -58,5 +64,5 @@ export async function classifyIntent(
       : undefined,
   };
 
-  return { success: true, intent, model };
+  return { success: true, intent, model, inputTokens, outputTokens };
 }
