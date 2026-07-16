@@ -26,4 +26,5 @@ export {
   Workflow as TransparencyIcon,
   RotateCcw as RetryIcon,
   Square as CancelIcon,
+  Flame as StreakIcon,
 } from "lucide-react";

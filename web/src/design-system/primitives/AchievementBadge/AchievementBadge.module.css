@@ -1,0 +1,22 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-full);
+  background: var(--color-accent-amber-100);
+  color: var(--color-accent-amber-700);
+  font-family: var(--font-geist-sans);
+  font-weight: 600;
+  font-size: var(--text-body-sm-size);
+}
+
+.icon {
+  display: flex;
+  color: var(--color-accent-amber-500);
+}
+
+.icon svg {
+  width: 18px;
+  height: 18px;
+}
