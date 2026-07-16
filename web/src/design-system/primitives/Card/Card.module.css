@@ -1,0 +1,8 @@
+/* Borders, not shadows, as the primary surface-separation mechanism --
+   docs/design-system/03-Component-Library.md §7.4. */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}

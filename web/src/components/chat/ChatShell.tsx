@@ -34,7 +34,18 @@ export function ChatShell({
       }
 
       setConversationId(body.conversationId);
-      setMessages((prev) => [...prev, body.userMessage, body.assistantMessage]);
+      // replyKind/practiceSet/assessmentReport/masteryUpdate are additive
+      // response fields (Sprint 2) sitting alongside assistantMessage,
+      // not inside the persisted row itself -- merged onto the message
+      // object here so MessageList can render the right pattern.
+      const assistantMessage: ChatMessage = {
+        ...body.assistantMessage,
+        replyKind: body.replyKind,
+        practiceSet: body.practiceSet,
+        assessmentReport: body.assessmentReport,
+        masteryUpdate: body.masteryUpdate,
+      };
+      setMessages((prev) => [...prev, body.userMessage, assistantMessage]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {

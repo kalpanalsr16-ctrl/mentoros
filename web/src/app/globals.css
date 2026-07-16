@@ -1,4 +1,8 @@
 @import "../design-system/tokens/tokens.css";
+/* KaTeX's stylesheet, required for LaTeX rendering in MessageBubble
+   (design-system/patterns/MessageBubble) -- must be imported from a
+   global stylesheet, not a component, per Next.js's CSS import rules. */
+@import "katex/dist/katex.min.css";
 
 html {
   height: 100%;

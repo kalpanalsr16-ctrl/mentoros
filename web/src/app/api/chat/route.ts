@@ -39,12 +39,14 @@ import {
   createPracticeSet,
   formatPracticeSetAsReply,
   type PracticeAgentContext,
+  type PracticeSet,
 } from "@/lib/agents/practice-agent";
 import {
   evaluateResponse,
   formatAssessmentReportAsReply,
   extractPracticeContext,
   type AssessmentAgentContext,
+  type AssessmentReport,
 } from "@/lib/agents/assessment-agent";
 import { reflectOnSession, type ReflectionAgentContext } from "@/lib/agents/reflection-agent";
 import { updateLearnerProfile, type MemoryAgentContext } from "@/lib/agents/memory-agent";
@@ -54,6 +56,7 @@ import { createPostgresKnowledgeProvider } from "@/lib/knowledge/postgres-knowle
 import { createTrigramConceptSearchProvider } from "@/lib/knowledge/trigram-concept-search-provider";
 import type { PlanningContext } from "@/lib/agents/planning-context";
 import type { Concept } from "@/lib/knowledge/curriculum-types";
+import type { ReplyKind, MasteryUpdatePayload } from "@/lib/chat/types";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -238,6 +241,10 @@ export async function POST(request: Request) {
 
   let replyContent: string;
   let llmMetadata: Record<string, unknown> = {};
+  let replyKind: ReplyKind = "text";
+  let practiceSetPayload: PracticeSet | undefined;
+  let assessmentReportPayload: AssessmentReport | undefined;
+  let masteryUpdatePayload: MasteryUpdatePayload | undefined;
 
   if (!safetyAssessment.safe) {
     // Blocked messages never reach Router/Planning/Concept Agent at all
@@ -245,6 +252,7 @@ export async function POST(request: Request) {
     // pipeline could still be argued past. Zero further Anthropic API
     // calls for blocked content, by design.
     replyContent = buildSafetyDeclineMessage(safetyAssessment.category ?? "platform_abuse");
+    replyKind = "safety_decline";
   } else {
     // Router Agent (M2): intent analysis only -- it never generates a
     // teaching reply itself. It decides whether this message needs
@@ -472,6 +480,8 @@ export async function POST(request: Request) {
         });
 
         replyContent = formatPracticeSetAsReply(practiceResult.response);
+        replyKind = "practice";
+        practiceSetPayload = practiceResult.response;
 
         await runEvaluationAgent(supabase, {
           traceId,
@@ -504,6 +514,8 @@ export async function POST(request: Request) {
         });
 
         replyContent = formatAssessmentReportAsReply(assessmentResult.response);
+        replyKind = "assessment";
+        assessmentReportPayload = assessmentResult.response;
 
         await runEvaluationAgent(supabase, {
           traceId,
@@ -576,17 +588,29 @@ export async function POST(request: Request) {
           };
           const memoryResult = await updateLearnerProfile(memoryAgentContext, learnerProfileWriter);
 
-          if (memoryResult.applied) {
+          if (memoryResult.applied && memoryResult.evidence) {
             await logEvent(supabase, {
               traceId,
               eventName: "learner_profile_updated",
               studentId,
               conversationId: activeConversationId,
               payload: {
-                conceptId: memoryResult.evidence?.conceptId,
-                masteryScore: memoryResult.evidence?.masteryScore,
+                conceptId: memoryResult.evidence.conceptId,
+                masteryScore: memoryResult.evidence.masteryScore,
               },
             });
+
+            // Surfaced to the client as a small, quiet inline note
+            // (docs/ui-architecture/05_Chat_Experience.md's "Memory
+            // updates" section) -- only when mastery genuinely changed,
+            // never on every turn. `masteryScore` here is the 0-1 scale
+            // learner_concept_mastery stores (see learner-profile-writer.ts);
+            // x100 to match AssessmentReport's 0-100 display convention.
+            masteryUpdatePayload = {
+              conceptId: memoryResult.evidence.conceptId,
+              conceptName: planningContext?.concept?.name ?? "this concept",
+              masteryScore: Math.round(memoryResult.evidence.masteryScore * 100),
+            };
           }
         } catch (err) {
           await logEvent(supabase, {
@@ -742,6 +766,13 @@ export async function POST(request: Request) {
     userMessage,
     assistantMessage,
     traceId,
+    // Additive, response-only fields (Sprint 2) -- see ReplyKind's doc
+    // comment above. Omitted (not null) when not applicable, so existing
+    // consumers that only read assistantMessage.content are unaffected.
+    replyKind,
+    ...(practiceSetPayload ? { practiceSet: practiceSetPayload } : {}),
+    ...(assessmentReportPayload ? { assessmentReport: assessmentReportPayload } : {}),
+    ...(masteryUpdatePayload ? { masteryUpdate: masteryUpdatePayload } : {}),
   });
 }
 
