@@ -24,4 +24,6 @@ export {
   BarChart3 as ReportsIcon,
   Eye as ViewReasoningIcon,
   Workflow as TransparencyIcon,
+  RotateCcw as RetryIcon,
+  Square as CancelIcon,
 } from "lucide-react";

@@ -27,7 +27,11 @@ const MAX_HISTORY_MESSAGES = 20;
  * Called after the current turn's user message has already been saved
  * (see the M0-06 save-then-reply flow in /api/chat), so the returned
  * history naturally ends with the message the student just sent --
- * no separate "append the current message" step is needed.
+ * no separate "append the current message" step is needed. On a Retry
+ * (Sprint 4), the previous attempt's assistant row has already been
+ * marked `superseded_at` before this runs, so it's excluded here too --
+ * the model regenerating a reply shouldn't see (and get anchored to) the
+ * attempt it's replacing.
  */
 export async function buildConversationContext(
   supabase: SupabaseServerClient,
@@ -38,6 +42,7 @@ export async function buildConversationContext(
     .select("role, content, created_at")
     .eq("conversation_id", conversationId)
     .in("role", ["user", "assistant"])
+    .is("superseded_at", null)
     .order("created_at", { ascending: false })
     .limit(MAX_HISTORY_MESSAGES);
 

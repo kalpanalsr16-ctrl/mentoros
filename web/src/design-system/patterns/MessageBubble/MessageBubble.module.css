@@ -22,8 +22,34 @@
   align-items: flex-end;
 }
 
-.reasoningLink {
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
   padding: 0 var(--space-1);
+}
+
+.caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: currentColor;
+  animation: caret-blink 1s step-start infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .caret {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+@keyframes caret-blink {
+  50% {
+    opacity: 0;
+  }
 }
 
 .bubble {

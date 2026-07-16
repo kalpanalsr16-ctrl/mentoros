@@ -8,7 +8,7 @@ import { NextResponse, type NextRequest } from "next/server";
 // Postgres round trip for the one route group actually being visited,
 // rather than adding a DB query to the proxy layer that every single
 // request in the app -- including /api/chat -- passes through.
-const PROTECTED_PATHS = ["/chat", "/app", "/studio", "/parent"];
+const PROTECTED_PATHS = ["/chat", "/app", "/studio", "/parent", "/onboarding"];
 
 export async function proxy(request: NextRequest) {
   const { response, isAuthenticated } = await updateSession(request);

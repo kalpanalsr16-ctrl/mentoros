@@ -30,16 +30,34 @@ export type ChatMessage = {
 
 export function MessageList({
   messages,
+  streamingMessageId,
   onViewReasoning,
+  onRetry,
 }: {
   messages: ChatMessage[];
+  /** The one message currently receiving `chunk` events (Sprint 4) -- shows a caret, no actions row yet. */
+  streamingMessageId: string | null;
   onViewReasoning: (traceId: string) => void;
+  /** Undefined while a request is in flight -- Retry only ever targets the latest assistant turn, and only when nothing is already generating. */
+  onRetry?: () => void;
 }) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
+
+  // Retry (per docs/ui-architecture/05_Chat_Experience.md's Message
+  // actions) only ever applies to the most recent assistant turn --
+  // matches route.ts's own retry targeting exactly (the latest
+  // non-superseded assistant message).
+  let lastAssistantIndex = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === "assistant") {
+      lastAssistantIndex = i;
+      break;
+    }
+  }
 
   return (
     <div
@@ -58,8 +76,14 @@ export function MessageList({
           Ask a question to get started.
         </p>
       )}
-      {messages.map((message) => (
-        <MessageRow key={message.id} message={message} onViewReasoning={onViewReasoning} />
+      {messages.map((message, index) => (
+        <MessageRow
+          key={message.id}
+          message={message}
+          streaming={message.id === streamingMessageId}
+          onViewReasoning={onViewReasoning}
+          onRetry={index === lastAssistantIndex ? onRetry : undefined}
+        />
       ))}
       <div ref={bottomRef} />
     </div>
@@ -68,17 +92,21 @@ export function MessageList({
 
 function MessageRow({
   message,
+  streaming,
   onViewReasoning,
+  onRetry,
 }: {
   message: ChatMessage;
+  streaming: boolean;
   onViewReasoning: (traceId: string) => void;
+  onRetry?: () => void;
 }) {
   const viewReasoning = message.trace_id ? () => onViewReasoning(message.trace_id!) : undefined;
 
   if (message.role === "assistant" && message.replyKind === "practice" && message.practiceSet) {
     return (
       <div style={{ display: "flex", justifyContent: "flex-start" }}>
-        <PracticeQuestionCard practiceSet={message.practiceSet} onViewReasoning={viewReasoning} />
+        <PracticeQuestionCard practiceSet={message.practiceSet} onViewReasoning={viewReasoning} onRetry={onRetry} />
       </div>
     );
   }
@@ -87,7 +115,11 @@ function MessageRow({
     return (
       <>
         <div style={{ display: "flex", justifyContent: "flex-start" }}>
-          <AssessmentFeedbackCard assessmentReport={message.assessmentReport} onViewReasoning={viewReasoning} />
+          <AssessmentFeedbackCard
+            assessmentReport={message.assessmentReport}
+            onViewReasoning={viewReasoning}
+            onRetry={onRetry}
+          />
         </div>
         {message.masteryUpdate && (
           <div style={{ display: "flex", justifyContent: "flex-start" }}>
@@ -103,7 +135,9 @@ function MessageRow({
     <MessageBubble
       content={message.content}
       variant={variant}
+      streaming={streaming}
       onViewReasoning={message.role === "assistant" ? viewReasoning : undefined}
+      onRetry={message.role === "assistant" ? onRetry : undefined}
     />
   );
 }

@@ -149,6 +149,78 @@ export async function generateTeachingReply(
 }
 
 /**
+ * Streaming twin of generateTeachingReply() above -- same system prompt,
+ * same fail-open error handling, same LLMReplyResult shape. The only
+ * difference is `onDelta` firing per text chunk as it arrives (via the
+ * SDK's MessageStream) instead of the caller waiting for one complete
+ * response. This is the ONLY generation call in this file worth
+ * streaming: every other function below uses `messages.parse()` with a
+ * Zod schema, and partial JSON isn't meaningful to show a student
+ * mid-stream (see route.ts / docs/ui-architecture/05_Chat_Experience.md's
+ * "Streaming responses" section for the full reasoning).
+ *
+ * `signal` is forwarded straight into the SDK's own RequestOptions --
+ * when route.ts's request.signal fires (client cancelled), the
+ * underlying fetch to Anthropic aborts too, so a cancelled generation
+ * actually stops being billed, not just stops being rendered.
+ */
+export async function generateTeachingReplyStreaming(
+  history: ClaudeMessage[],
+  planGuidance: string | undefined,
+  onDelta: (text: string) => void,
+  signal?: AbortSignal,
+): Promise<LLMReplyResult> {
+  try {
+    const stream = anthropic.messages.stream(
+      {
+        model: MODEL,
+        max_tokens: MAX_TOKENS,
+        system: planGuidance
+          ? `${SYSTEM_PROMPT}\n\nCurrent teaching guidance for this response: ${planGuidance}`
+          : SYSTEM_PROMPT,
+        thinking: { type: "adaptive", display: "summarized" },
+        messages: history,
+      },
+      { signal },
+    );
+
+    stream.on("text", onDelta);
+
+    const finalMessage = await stream.finalMessage();
+    const textBlock = finalMessage.content.find((block) => block.type === "text");
+
+    if (!textBlock || textBlock.type !== "text" || !textBlock.text.trim()) {
+      return { success: false, reason: "empty_response" };
+    }
+
+    return {
+      success: true,
+      content: textBlock.text,
+      model: finalMessage.model,
+      inputTokens: finalMessage.usage.input_tokens,
+      outputTokens: finalMessage.usage.output_tokens,
+    };
+  } catch (err) {
+    if (err instanceof Anthropic.APIUserAbortError) {
+      return { success: false, reason: "cancelled" };
+    }
+    if (err instanceof Anthropic.RateLimitError) {
+      return { success: false, reason: "rate_limited" };
+    }
+    if (err instanceof Anthropic.AuthenticationError) {
+      return { success: false, reason: "auth_error" };
+    }
+    if (err instanceof Anthropic.APIConnectionError) {
+      return { success: false, reason: "connection_error" };
+    }
+    if (err instanceof Anthropic.APIError) {
+      return { success: false, reason: `api_error_${err.status}` };
+    }
+    return { success: false, reason: "unknown_error" };
+  }
+}
+
+/**
  * Grounded in 05_Agent_Architecture/04_Router_Agent.md's Purpose, Supported
  * Intents, and Prompt Strategy sections. Reasons as "an expert conversation
  * analyst" about what the learner wants, not how to teach it -- teaching

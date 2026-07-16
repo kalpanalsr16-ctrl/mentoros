@@ -3,7 +3,7 @@ import { generateTraceId, logEvent } from "@/lib/observability/trace";
 import { checkMessageSafety, buildSafetyDeclineMessage } from "@/lib/safety/filter";
 import { buildConversationContext, type ClaudeMessage } from "@/lib/agents/context-agent";
 import {
-  generateTeachingReply,
+  generateTeachingReplyStreaming,
   classifyIntentWithClaude,
   classifySafetyWithClaude,
   generateConceptExplanation,
@@ -56,9 +56,19 @@ import { createPostgresKnowledgeProvider } from "@/lib/knowledge/postgres-knowle
 import { createTrigramConceptSearchProvider } from "@/lib/knowledge/trigram-concept-search-provider";
 import type { PlanningContext } from "@/lib/agents/planning-context";
 import type { Concept } from "@/lib/knowledge/curriculum-types";
-import type { ReplyKind, MasteryUpdatePayload } from "@/lib/chat/types";
+import type { ReplyKind, MasteryUpdatePayload, MessageRow } from "@/lib/chat/types";
+import { createStreamingEventBuilder, type StreamingEventBuilder } from "@/lib/chat/streaming-event-builder";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
+
+/**
+ * Everything a Retry needs beyond a normal send: which row to mark
+ * superseded before regenerating, per the append-only decision (Sprint
+ * 4) -- retry never overwrites `content` on an existing row, it always
+ * inserts a fresh assistant message and hides the old one from the
+ * default conversation view instead.
+ */
+type RetryTarget = { supersedeMessageId: string };
 
 export async function POST(request: Request) {
   const traceId = generateTraceId();
@@ -108,17 +118,278 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => null);
-  const content =
-    typeof body?.content === "string" ? body.content.trim() : "";
-  const conversationId =
+  const isRetry = body?.retry === true;
+  const bodyConversationId =
     typeof body?.conversationId === "string" ? body.conversationId : null;
 
-  if (!content) {
-    return Response.json(
-      { error: "Message content is required.", traceId },
-      { status: 400 },
-    );
+  let activeConversationId: string;
+  let content: string;
+  let userMessage: MessageRow;
+  let retryTarget: RetryTarget | null = null;
+
+  if (isRetry) {
+    // Retry (Sprint 4): "same context" per docs/ui-architecture/
+    // 05_Chat_Experience.md's Message actions section -- no new user
+    // message, the pipeline re-runs against the conversation's existing
+    // last turn. Requires an existing conversation; there's nothing to
+    // retry in a brand-new one.
+    if (!bodyConversationId) {
+      return Response.json({ error: "conversationId is required to retry.", traceId }, { status: 400 });
+    }
+    activeConversationId = bodyConversationId;
+
+    const { data: lastAssistant } = await supabase
+      .from("messages")
+      .select("id, role, content, trace_id")
+      .eq("conversation_id", activeConversationId)
+      .eq("role", "assistant")
+      .is("superseded_at", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const { data: lastUser } = await supabase
+      .from("messages")
+      .select("id, role, content, trace_id")
+      .eq("conversation_id", activeConversationId)
+      .eq("role", "user")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!lastAssistant || !lastUser) {
+      return Response.json({ error: "Nothing to retry.", traceId }, { status: 400 });
+    }
+
+    content = lastUser.content;
+    userMessage = lastUser;
+    retryTarget = { supersedeMessageId: lastAssistant.id };
+  } else {
+    content = typeof body?.content === "string" ? body.content.trim() : "";
+
+    if (!content) {
+      return Response.json({ error: "Message content is required.", traceId }, { status: 400 });
+    }
+
+    activeConversationId = bodyConversationId ?? "";
+
+    if (!activeConversationId) {
+      const { data: conversation, error: conversationError } = await supabase
+        .from("conversations")
+        .insert({ student_id: studentId })
+        .select("id")
+        .single();
+
+      if (conversationError || !conversation) {
+        await logEvent(supabase, {
+          traceId,
+          eventName: "message_rejected",
+          studentId,
+          payload: { reason: "conversation_create_failed" },
+        });
+        return Response.json({ error: "Could not start a new conversation.", traceId }, { status: 500 });
+      }
+
+      activeConversationId = conversation.id;
+    }
+
+    // The unsafe message is still saved -- it's part of the real
+    // conversation history and needs to be reviewable (a parent or
+    // reviewer must be able to see what was said and how MentorOS
+    // responded), even though the reply it gets is a decline, not the
+    // usual placeholder.
+    const { data: insertedUserMessage, error: userMessageError } = await supabase
+      .from("messages")
+      .insert({
+        conversation_id: activeConversationId,
+        role: "user",
+        content,
+      })
+      .select("id, role, content, trace_id")
+      .single();
+
+    if (userMessageError || !insertedUserMessage) {
+      // Most likely cause: activeConversationId doesn't belong to this
+      // student, and Row Level Security silently rejected the insert.
+      await logEvent(supabase, {
+        traceId,
+        eventName: "message_rejected",
+        studentId,
+        conversationId: activeConversationId,
+        payload: { reason: "user_message_save_failed" },
+      });
+      return Response.json({ error: "Could not save your message.", traceId }, { status: 403 });
+    }
+
+    userMessage = insertedUserMessage;
   }
+
+  if (retryTarget) {
+    // Marked BEFORE buildConversationContext runs (inside runTutoringPipeline
+    // below) so the regenerated reply's history naturally excludes the
+    // attempt it's replacing -- append-only per Sprint 4's explicit
+    // decision: this UPDATE only ever touches `superseded_at`, never
+    // `content` or `trace_id` on the superseded row.
+    const { error: supersedeError } = await supabase
+      .from("messages")
+      .update({ superseded_at: new Date().toISOString() })
+      .eq("id", retryTarget.supersedeMessageId);
+
+    if (supersedeError) {
+      return Response.json({ error: "Could not prepare retry.", traceId }, { status: 500 });
+    }
+  }
+
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const events = createStreamingEventBuilder(controller);
+
+      try {
+        const pipelineResult = await runTutoringPipeline({
+          supabase,
+          traceId,
+          studentId,
+          activeConversationId,
+          content,
+          events,
+          knowledgeProvider,
+          conceptSearchProvider,
+          learnerStateProvider,
+          learnerProfileWriter,
+          signal: request.signal,
+        });
+
+        const { data: assistantMessage, error: assistantMessageError } = await supabase
+          .from("messages")
+          .insert({
+            conversation_id: activeConversationId,
+            role: "assistant",
+            content: pipelineResult.replyContent,
+            // Sprint 3: lets the AI Transparency Panel look up this turn's
+            // trace after a page reload.
+            trace_id: traceId,
+          })
+          .select("id, role, content, trace_id")
+          .single();
+
+        if (assistantMessageError || !assistantMessage) {
+          await logEvent(supabase, {
+            traceId,
+            eventName: "reply_failed",
+            studentId,
+            conversationId: activeConversationId,
+            payload: {
+              reason: "assistant_message_save_failed",
+              userMessageId: userMessage.id,
+            },
+          });
+          events.error("Could not save the reply.");
+          return;
+        }
+
+        await logEvent(supabase, {
+          traceId,
+          eventName: pipelineResult.safe ? "reply_sent" : "safety_reply_sent",
+          studentId,
+          conversationId: activeConversationId,
+          payload: {
+            userMessageId: userMessage.id,
+            assistantMessageId: assistantMessage.id,
+            ...pipelineResult.llmMetadata,
+          },
+        });
+
+        events.state("Completed");
+        events.done({
+          conversationId: activeConversationId,
+          userMessage,
+          assistantMessage,
+          traceId,
+          // Additive, response-only fields (Sprint 2) -- see ReplyKind's doc
+          // comment above. Omitted (not null) when not applicable, so existing
+          // consumers that only read assistantMessage.content are unaffected.
+          replyKind: pipelineResult.replyKind,
+          ...(pipelineResult.practiceSetPayload ? { practiceSet: pipelineResult.practiceSetPayload } : {}),
+          ...(pipelineResult.assessmentReportPayload
+            ? { assessmentReport: pipelineResult.assessmentReportPayload }
+            : {}),
+          ...(pipelineResult.masteryUpdatePayload ? { masteryUpdate: pipelineResult.masteryUpdatePayload } : {}),
+        });
+      } catch (err) {
+        events.error(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+      } finally {
+        events.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+    },
+  });
+}
+
+// Shown when the Claude API call itself fails (rate limit, timeout,
+// outage) -- an honest, persisted turn rather than a raw crash or a
+// silently missing reply. See Task 5 notes in
+// docs/implementation/M1-04-Chat-Route-Integration.md.
+function buildLLMFailureReply(): string {
+  return "I'm having trouble responding right now. Please try sending your message again in a moment.";
+}
+
+type PipelineResult = {
+  replyContent: string;
+  replyKind: ReplyKind;
+  llmMetadata: Record<string, unknown>;
+  safe: boolean;
+  practiceSetPayload?: PracticeSet;
+  assessmentReportPayload?: AssessmentReport;
+  masteryUpdatePayload?: MasteryUpdatePayload;
+};
+
+/**
+ * The full Safety -> Router -> Planning -> Concept/Practice/Assessment ->
+ * Reflection -> Memory pipeline, extracted from the route handler (Sprint
+ * 4) so POST() stays focused on request/response plumbing (auth, retry
+ * setup, opening the stream) rather than agent orchestration living
+ * inline inside a ReadableStream callback. Decision logic here is
+ * byte-for-byte the same as before Sprint 4 -- the only additions are the
+ * `events.state(...)` calls at the two real phase boundaries (Thinking
+ * once Safety/Router/Planning start, Teaching once generation starts) and
+ * routing the one streamable path (generateTeachingReplyStreaming) through
+ * `events.chunk(...)` instead of waiting for a complete response.
+ */
+async function runTutoringPipeline(params: {
+  supabase: SupabaseServerClient;
+  traceId: string;
+  studentId: string;
+  activeConversationId: string;
+  content: string;
+  events: StreamingEventBuilder;
+  knowledgeProvider: ReturnType<typeof createPostgresKnowledgeProvider>;
+  conceptSearchProvider: ReturnType<typeof createTrigramConceptSearchProvider>;
+  learnerStateProvider: ReturnType<typeof createPostgresLearnerStateProvider>;
+  learnerProfileWriter: ReturnType<typeof createPostgresLearnerProfileWriter>;
+  signal: AbortSignal;
+}): Promise<PipelineResult> {
+  const {
+    supabase,
+    traceId,
+    studentId,
+    activeConversationId,
+    content,
+    events,
+    knowledgeProvider,
+    conceptSearchProvider,
+    learnerStateProvider,
+    learnerProfileWriter,
+    signal,
+  } = params;
+
+  events.state("Thinking");
 
   // Layer 1 of M9's Safety Agent -- the M0 keyword filter, free and
   // deterministic. Computed here (before history even exists) so a
@@ -127,69 +398,14 @@ export async function POST(request: Request) {
   // only runs when this passes.
   const layer1Result = checkMessageSafety(content);
 
-  let activeConversationId = conversationId;
-
-  if (!activeConversationId) {
-    const { data: conversation, error: conversationError } = await supabase
-      .from("conversations")
-      .insert({ student_id: studentId })
-      .select("id")
-      .single();
-
-    if (conversationError || !conversation) {
-      await logEvent(supabase, {
-        traceId,
-        eventName: "message_rejected",
-        studentId,
-        payload: { reason: "conversation_create_failed" },
-      });
-      return Response.json(
-        { error: "Could not start a new conversation.", traceId },
-        { status: 500 },
-      );
-    }
-
-    activeConversationId = conversation.id;
-  }
-
-  // The unsafe message is still saved -- it's part of the real
-  // conversation history and needs to be reviewable (a parent or
-  // reviewer must be able to see what was said and how MentorOS
-  // responded), even though the reply it gets is a decline, not the
-  // usual placeholder.
-  const { data: userMessage, error: userMessageError } = await supabase
-    .from("messages")
-    .insert({
-      conversation_id: activeConversationId,
-      role: "user",
-      content,
-    })
-    .select("id, role, content")
-    .single();
-
-  if (userMessageError || !userMessage) {
-    // Most likely cause: activeConversationId doesn't belong to this
-    // student, and Row Level Security silently rejected the insert.
-    await logEvent(supabase, {
-      traceId,
-      eventName: "message_rejected",
-      studentId,
-      conversationId: activeConversationId,
-      payload: { reason: "user_message_save_failed" },
-    });
-    return Response.json(
-      { error: "Could not save your message.", traceId },
-      { status: 403 },
-    );
-  }
-
-  // Built after the user message above was saved, so the history the
-  // model sees naturally ends with the message the student just sent --
-  // needed here (not just later) since Layer 2 of Safety Agent (M9)
-  // reasons over the Context Object, per 03_Safety_Agent.md's Inputs
-  // section. Skipped (and Layer 2 never called) when Layer 1 already
-  // flagged the message -- evaluateSafety() short-circuits before ever
-  // touching `history` or `classify` in that case.
+  // Built after the user message (or, on Retry, the superseded-reply
+  // update) above has already landed, so the history the model sees
+  // naturally ends with the message being answered -- needed here (not
+  // just later) since Layer 2 of Safety Agent (M9) reasons over the
+  // Context Object, per 03_Safety_Agent.md's Inputs section. Skipped
+  // (and Layer 2 never called) when Layer 1 already flagged the message
+  // -- evaluateSafety() short-circuits before ever touching `history` or
+  // `classify` in that case.
   const history = layer1Result.safe
     ? await buildConversationContext(supabase, activeConversationId)
     : [];
@@ -377,6 +593,7 @@ export async function POST(request: Request) {
         }
       }
 
+      events.state("Teaching");
       const llmStartedAt = Date.now();
 
       // Practice Agent (M7): gated on Router's own "Practice"
@@ -439,11 +656,7 @@ export async function POST(request: Request) {
       // has decided this isn't a diagnostic moment -- per
       // 05_Planning_agent.md's Recovery Strategy ("If learner profile is
       // incomplete: ask diagnostic questions"), Diagnostic means diagnose,
-      // not teach. Every real learner currently reports isKnown: false (no
-      // writer until M7/M8), so plan.strategy is "Diagnostic"
-      // unconditionally in production today -- this branch is fully
-      // tested but, like M4's High Mastery/Young Learner branches, not
-      // yet exercised live. See M6's gate review.
+      // not teach.
       let conceptResult: ConceptAgentResult | undefined;
       if (
         !practiceResult &&
@@ -690,7 +903,17 @@ export async function POST(request: Request) {
           });
         }
 
-        const llmResult = await generateTeachingReply(history, teachingGuidance);
+        // The one genuinely streamable path (client.ts's doc comment) --
+        // every chunk goes straight to the student as it arrives via
+        // `events.chunk`, and `signal` (request.signal, forwarded from
+        // POST) lets a client-side Cancel actually stop the upstream
+        // Anthropic call, not just stop rendering it.
+        const llmResult = await generateTeachingReplyStreaming(
+          history,
+          teachingGuidance,
+          (delta) => events.chunk(delta),
+          signal,
+        );
 
         // Logged immediately, separate from the reply_sent/reply_failed events
         // below -- this is observability into the new external dependency
@@ -726,73 +949,15 @@ export async function POST(request: Request) {
     }
   }
 
-  const { data: assistantMessage, error: assistantMessageError } =
-    await supabase
-      .from("messages")
-      .insert({
-        conversation_id: activeConversationId,
-        role: "assistant",
-        content: replyContent,
-        // Sprint 3: lets the AI Transparency Panel look up this turn's
-        // trace after a page reload, when /api/chat's own JSON response
-        // (which already carries traceId) is long gone. Never set on the
-        // user message row -- "View reasoning" is an assistant-message
-        // action only.
-        trace_id: traceId,
-      })
-      .select("id, role, content, trace_id")
-      .single();
-
-  if (assistantMessageError || !assistantMessage) {
-    await logEvent(supabase, {
-      traceId,
-      eventName: "reply_failed",
-      studentId,
-      conversationId: activeConversationId,
-      payload: {
-        reason: "assistant_message_save_failed",
-        userMessageId: userMessage.id,
-      },
-    });
-    return Response.json(
-      { error: "Could not save the reply.", traceId },
-      { status: 500 },
-    );
-  }
-
-  await logEvent(supabase, {
-    traceId,
-    eventName: safetyAssessment.safe ? "reply_sent" : "safety_reply_sent",
-    studentId,
-    conversationId: activeConversationId,
-    payload: {
-      userMessageId: userMessage.id,
-      assistantMessageId: assistantMessage.id,
-      ...llmMetadata,
-    },
-  });
-
-  return Response.json({
-    conversationId: activeConversationId,
-    userMessage,
-    assistantMessage,
-    traceId,
-    // Additive, response-only fields (Sprint 2) -- see ReplyKind's doc
-    // comment above. Omitted (not null) when not applicable, so existing
-    // consumers that only read assistantMessage.content are unaffected.
+  return {
+    replyContent,
     replyKind,
-    ...(practiceSetPayload ? { practiceSet: practiceSetPayload } : {}),
-    ...(assessmentReportPayload ? { assessmentReport: assessmentReportPayload } : {}),
-    ...(masteryUpdatePayload ? { masteryUpdate: masteryUpdatePayload } : {}),
-  });
-}
-
-// Shown when the Claude API call itself fails (rate limit, timeout,
-// outage) -- an honest, persisted turn rather than a raw crash or a
-// silently missing reply. See Task 5 notes in
-// docs/implementation/M1-04-Chat-Route-Integration.md.
-function buildLLMFailureReply(): string {
-  return "I'm having trouble responding right now. Please try sending your message again in a moment.";
+    llmMetadata,
+    safe: safetyAssessment.safe,
+    practiceSetPayload,
+    assessmentReportPayload,
+    masteryUpdatePayload,
+  };
 }
 
 /**
