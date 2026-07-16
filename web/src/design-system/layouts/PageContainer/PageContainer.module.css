@@ -1,0 +1,21 @@
+/* Grid System — docs/design-system/02-Technical-Design-Foundations.md §6.
+   1200px cap even at large viewports, per that doc's own note that
+   MentorOS is not a wide-dashboard product by default. `wide` opts a
+   screen into the full container for the one permitted exception
+   (Teacher Studio's denser tables). */
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--space-4);
+}
+
+.narrow {
+  max-width: 720px;
+}
+
+@media (min-width: 768px) {
+  .container {
+    padding: 0 var(--space-8);
+  }
+}

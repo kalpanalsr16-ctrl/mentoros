@@ -1,0 +1,71 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  font-family: var(--font-geist-sans);
+  font-weight: 600;
+  font-size: 1rem;
+  line-height: 1.5;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-instant) var(--easing-standard),
+    border-color var(--duration-instant) var(--easing-standard),
+    color var(--duration-instant) var(--easing-standard),
+    opacity var(--duration-instant) var(--easing-standard);
+  /* Accessibility §16: 44x44 minimum touch target on Student surfaces;
+     this base size satisfies it, `sm` is opted into explicitly where a
+     denser context (Teacher Studio) allows the smaller 40px floor. */
+  min-height: 44px;
+  padding: 0 var(--space-4);
+}
+
+.sm {
+  min-height: 40px;
+  padding: 0 var(--space-3);
+  font-size: 0.875rem;
+}
+
+.primary {
+  background: var(--color-interactive);
+  color: var(--color-ink-000);
+}
+.primary:hover:not(:disabled) {
+  background: var(--color-interactive-hover);
+}
+
+.secondary {
+  background: transparent;
+  color: var(--color-interactive);
+  border-color: var(--color-border);
+}
+.secondary:hover:not(:disabled) {
+  background: var(--color-surface-secondary);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--color-text-primary);
+}
+.ghost:hover:not(:disabled) {
+  background: var(--color-surface-secondary);
+}
+
+.danger {
+  background: var(--color-danger-600);
+  color: var(--color-ink-000);
+}
+.danger:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.button:active:not(:disabled) {
+  transform: scale(0.98);
+}

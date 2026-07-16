@@ -1,0 +1,32 @@
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-secondary);
+}
+
+.option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  transition: background-color var(--duration-instant) var(--easing-standard),
+    color var(--duration-instant) var(--easing-standard);
+}
+
+.option:hover {
+  color: var(--color-text-primary);
+}
+
+.optionActive {
+  background: var(--color-surface);
+  color: var(--color-interactive);
+}
