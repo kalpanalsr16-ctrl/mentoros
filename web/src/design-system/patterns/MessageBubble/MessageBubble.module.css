@@ -11,8 +11,22 @@
   justify-content: flex-start;
 }
 
-.bubble {
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
   max-width: 80%;
+}
+
+.row.user .column {
+  align-items: flex-end;
+}
+
+.reasoningLink {
+  padding: 0 var(--space-1);
+}
+
+.bubble {
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-lg);
   font-family: var(--font-geist-sans);

@@ -229,7 +229,12 @@ export async function POST(request: Request) {
     studentId,
     conversationId: activeConversationId,
     payload: safetyAssessment.safe
-      ? { contentLength: content.length, ...safetyCallMetadata }
+      ? {
+          riskLevel: safetyAssessment.riskLevel,
+          confidence: safetyAssessment.confidence,
+          contentLength: content.length,
+          ...safetyCallMetadata,
+        }
       : {
           category: safetyAssessment.category,
           riskLevel: safetyAssessment.riskLevel,
@@ -728,8 +733,14 @@ export async function POST(request: Request) {
         conversation_id: activeConversationId,
         role: "assistant",
         content: replyContent,
+        // Sprint 3: lets the AI Transparency Panel look up this turn's
+        // trace after a page reload, when /api/chat's own JSON response
+        // (which already carries traceId) is long gone. Never set on the
+        // user message row -- "View reasoning" is an assistant-message
+        // action only.
+        trace_id: traceId,
       })
-      .select("id, role, content")
+      .select("id, role, content, trace_id")
       .single();
 
   if (assistantMessageError || !assistantMessage) {
@@ -851,6 +862,10 @@ async function runEvaluationAgent(
         overallScore: response.overallScore,
         qualityStatus: response.qualityStatus,
         groundedness: response.groundedness,
+        accuracy: response.accuracy,
+        educationalQuality: response.educationalQuality,
+        personalization: response.personalization,
+        clarity: response.clarity,
         safety: response.safety,
         hallucinationRisk: response.hallucinationRisk,
         // Evaluation's OWN call metadata -- distinct from `params.latencyMs`

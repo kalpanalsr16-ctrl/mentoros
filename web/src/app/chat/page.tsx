@@ -31,7 +31,7 @@ export default async function ChatPage() {
   if (conversationId) {
     const { data: messageRows } = await supabase
       .from("messages")
-      .select("id, role, content")
+      .select("id, role, content, trace_id")
       .eq("conversation_id", conversationId)
       .order("created_at", { ascending: true });
 

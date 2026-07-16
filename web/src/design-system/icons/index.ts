@@ -22,4 +22,6 @@ export {
   Users as ClassesIcon,
   BookOpen as CurriculumIcon,
   BarChart3 as ReportsIcon,
+  Eye as ViewReasoningIcon,
+  Workflow as TransparencyIcon,
 } from "lucide-react";

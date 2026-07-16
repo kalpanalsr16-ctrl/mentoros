@@ -1,6 +1,8 @@
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
+import { LinkButton } from "@/design-system/primitives/LinkButton";
+import { ViewReasoningIcon } from "@/design-system/icons";
 import styles from "./MessageBubble.module.css";
 
 export type MessageBubbleVariant = "user" | "assistant" | "safety";
@@ -8,6 +10,8 @@ export type MessageBubbleVariant = "user" | "assistant" | "safety";
 export type MessageBubbleProps = {
   content: string;
   variant: MessageBubbleVariant;
+  /** Omitted entirely for user messages and for any assistant turn with no trace_id (pre-Sprint-3 history). */
+  onViewReasoning?: () => void;
 };
 
 /**
@@ -19,16 +23,23 @@ export type MessageBubbleProps = {
  * math tutor; today's plain-text rendering can't express `\frac{1}{2}`
  * at all.
  */
-export function MessageBubble({ content, variant }: MessageBubbleProps) {
+export function MessageBubble({ content, variant, onViewReasoning }: MessageBubbleProps) {
   return (
     <div className={`${styles.row} ${styles[variant]}`}>
-      <div className={`${styles.bubble} ${styles[variant]}`}>
-        {variant === "safety" && <span className={styles.safetyLabel}>MentorOS</span>}
-        <div className={styles.markdown}>
-          <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
-            {content}
-          </ReactMarkdown>
+      <div className={styles.column}>
+        <div className={`${styles.bubble} ${styles[variant]}`}>
+          {variant === "safety" && <span className={styles.safetyLabel}>MentorOS</span>}
+          <div className={styles.markdown}>
+            <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+              {content}
+            </ReactMarkdown>
+          </div>
         </div>
+        {onViewReasoning && (
+          <LinkButton icon={<ViewReasoningIcon aria-hidden="true" />} onClick={onViewReasoning} className={styles.reasoningLink}>
+            View reasoning
+          </LinkButton>
+        )}
       </div>
     </div>
   );

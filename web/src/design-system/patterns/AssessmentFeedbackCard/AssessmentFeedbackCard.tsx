@@ -1,6 +1,8 @@
 import { Card } from "@/design-system/primitives/Card";
 import { Badge, type BadgeVariant } from "@/design-system/primitives/Badge";
 import { ProgressRing } from "@/design-system/primitives/ProgressRing";
+import { LinkButton } from "@/design-system/primitives/LinkButton";
+import { ViewReasoningIcon } from "@/design-system/icons";
 import type { AssessmentReport, MasteryStatus, RecommendedNextStep } from "@/lib/agents/assessment-agent";
 import styles from "./AssessmentFeedbackCard.module.css";
 
@@ -22,6 +24,7 @@ const NEXT_STEP_LABEL: Record<RecommendedNextStep, string> = {
 
 export type AssessmentFeedbackCardProps = {
   assessmentReport: AssessmentReport;
+  onViewReasoning?: () => void;
 };
 
 /**
@@ -32,7 +35,7 @@ export type AssessmentFeedbackCardProps = {
  * progress, not failure) -- misconceptions are framed as feedback, never
  * styled as errors.
  */
-export function AssessmentFeedbackCard({ assessmentReport }: AssessmentFeedbackCardProps) {
+export function AssessmentFeedbackCard({ assessmentReport, onViewReasoning }: AssessmentFeedbackCardProps) {
   return (
     <Card className={styles.card}>
       <div className={styles.head}>
@@ -57,6 +60,11 @@ export function AssessmentFeedbackCard({ assessmentReport }: AssessmentFeedbackC
 
       <div className={styles.footer}>
         <span>Next: {NEXT_STEP_LABEL[assessmentReport.recommendedNextStep]}</span>
+        {onViewReasoning && (
+          <LinkButton icon={<ViewReasoningIcon aria-hidden="true" />} onClick={onViewReasoning} className={styles.reasoningLink}>
+            View reasoning
+          </LinkButton>
+        )}
       </div>
     </Card>
   );

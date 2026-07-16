@@ -21,9 +21,20 @@ export type ChatMessage = {
   practiceSet?: PracticeSet;
   assessmentReport?: AssessmentReport;
   masteryUpdate?: MasteryUpdatePayload;
+  // Sprint 3: set on assistant rows only (messages.trace_id, added in
+  // 0007_messages_trace_id.sql). Null on user messages and on any row
+  // inserted before Sprint 3 -- "View reasoning" simply doesn't render
+  // for those, an honest degrade rather than a broken link.
+  trace_id?: string | null;
 };
 
-export function MessageList({ messages }: { messages: ChatMessage[] }) {
+export function MessageList({
+  messages,
+  onViewReasoning,
+}: {
+  messages: ChatMessage[];
+  onViewReasoning: (traceId: string) => void;
+}) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -48,18 +59,26 @@ export function MessageList({ messages }: { messages: ChatMessage[] }) {
         </p>
       )}
       {messages.map((message) => (
-        <MessageRow key={message.id} message={message} />
+        <MessageRow key={message.id} message={message} onViewReasoning={onViewReasoning} />
       ))}
       <div ref={bottomRef} />
     </div>
   );
 }
 
-function MessageRow({ message }: { message: ChatMessage }) {
+function MessageRow({
+  message,
+  onViewReasoning,
+}: {
+  message: ChatMessage;
+  onViewReasoning: (traceId: string) => void;
+}) {
+  const viewReasoning = message.trace_id ? () => onViewReasoning(message.trace_id!) : undefined;
+
   if (message.role === "assistant" && message.replyKind === "practice" && message.practiceSet) {
     return (
       <div style={{ display: "flex", justifyContent: "flex-start" }}>
-        <PracticeQuestionCard practiceSet={message.practiceSet} />
+        <PracticeQuestionCard practiceSet={message.practiceSet} onViewReasoning={viewReasoning} />
       </div>
     );
   }
@@ -68,7 +87,7 @@ function MessageRow({ message }: { message: ChatMessage }) {
     return (
       <>
         <div style={{ display: "flex", justifyContent: "flex-start" }}>
-          <AssessmentFeedbackCard assessmentReport={message.assessmentReport} />
+          <AssessmentFeedbackCard assessmentReport={message.assessmentReport} onViewReasoning={viewReasoning} />
         </div>
         {message.masteryUpdate && (
           <div style={{ display: "flex", justifyContent: "flex-start" }}>
@@ -80,5 +99,11 @@ function MessageRow({ message }: { message: ChatMessage }) {
   }
 
   const variant = message.replyKind === "safety_decline" ? "safety" : message.role === "user" ? "user" : "assistant";
-  return <MessageBubble content={message.content} variant={variant} />;
+  return (
+    <MessageBubble
+      content={message.content}
+      variant={variant}
+      onViewReasoning={message.role === "assistant" ? viewReasoning : undefined}
+    />
+  );
 }

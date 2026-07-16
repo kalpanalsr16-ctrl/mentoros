@@ -1,0 +1,113 @@
+.node {
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.node:last-child {
+  border-bottom: none;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-1);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--color-text-primary);
+}
+
+.head svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--color-text-tertiary);
+}
+
+.agent {
+  font-family: var(--font-geist-mono);
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.derivedTag {
+  font-family: var(--font-geist-mono);
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0 4px;
+}
+
+.latency {
+  margin-left: auto;
+  font-family: var(--font-geist-mono);
+  font-size: var(--text-caption-size);
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+}
+
+.body {
+  padding: 0 var(--space-1) var(--space-3) var(--space-6);
+}
+
+.details {
+  margin: 0 0 var(--space-2);
+  display: grid;
+  gap: var(--space-1);
+}
+
+.detailRow {
+  display: flex;
+  gap: var(--space-2);
+  font-size: var(--text-body-sm-size);
+  font-family: var(--font-geist-sans);
+}
+
+.detailRow dt {
+  color: var(--color-text-tertiary);
+  min-width: 11rem;
+  flex-shrink: 0;
+}
+
+.detailRow dd {
+  margin: 0;
+  color: var(--color-text-primary);
+}
+
+.callMeta {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-geist-mono);
+  font-size: var(--text-caption-size);
+  color: var(--color-text-tertiary);
+}
+
+.rawToggle {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-caption-size);
+  color: var(--color-interactive);
+  cursor: pointer;
+}
+
+.raw {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2);
+  background: var(--color-surface-secondary);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-geist-mono);
+  font-size: var(--text-caption-size);
+  color: var(--color-text-secondary);
+  overflow-x: auto;
+  max-height: 200px;
+  overflow-y: auto;
+}

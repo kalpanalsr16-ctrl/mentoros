@@ -1,5 +1,7 @@
 import { Card } from "@/design-system/primitives/Card";
 import { Badge, type BadgeVariant } from "@/design-system/primitives/Badge";
+import { LinkButton } from "@/design-system/primitives/LinkButton";
+import { ViewReasoningIcon } from "@/design-system/icons";
 import type { PracticeSet } from "@/lib/agents/practice-agent";
 import styles from "./PracticeQuestionCard.module.css";
 
@@ -13,6 +15,7 @@ const DIFFICULTY_BADGE: Record<PracticeSet["difficulty"], BadgeVariant> = {
 
 export type PracticeQuestionCardProps = {
   practiceSet: PracticeSet;
+  onViewReasoning?: () => void;
 };
 
 /**
@@ -24,7 +27,7 @@ export type PracticeQuestionCardProps = {
  * so a student answers by typing in the normal chat input, same as
  * today -- this card has no answer-input UI of its own.
  */
-export function PracticeQuestionCard({ practiceSet }: PracticeQuestionCardProps) {
+export function PracticeQuestionCard({ practiceSet, onViewReasoning }: PracticeQuestionCardProps) {
   return (
     <Card className={styles.card}>
       <div className={styles.head}>
@@ -39,6 +42,11 @@ export function PracticeQuestionCard({ practiceSet }: PracticeQuestionCardProps)
       <div className={styles.meta}>
         <span>{practiceSet.estimatedTime}</span>
         <span>{practiceSet.learningGoal}</span>
+        {onViewReasoning && (
+          <LinkButton icon={<ViewReasoningIcon aria-hidden="true" />} onClick={onViewReasoning} className={styles.reasoningLink}>
+            View reasoning
+          </LinkButton>
+        )}
       </div>
     </Card>
   );
