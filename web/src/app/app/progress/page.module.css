@@ -1,7 +1,6 @@
 .page {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
   gap: var(--space-5);
   padding: var(--space-8) 0;
 }
@@ -21,19 +20,20 @@
   color: var(--color-text-secondary);
 }
 
-.statGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+.retryLink {
+  font-family: var(--font-geist-sans);
+  font-weight: 600;
+  color: var(--color-interactive);
+}
+
+.chapterCard {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-3);
-  width: 100%;
 }
 
-.suggestionCard {
-  width: 100%;
-}
-
-.suggestionLabel {
-  margin: 0 0 var(--space-2);
+.chapterTitle {
+  margin: 0;
   font-family: var(--font-geist-mono);
   font-size: var(--text-caption-size);
   text-transform: uppercase;
@@ -41,22 +41,23 @@
   color: var(--color-text-tertiary);
 }
 
-.suggestionBody {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
+.conceptGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--space-4);
 }
 
-.suggestionText {
+.conceptItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: center;
+}
+
+.conceptName {
   margin: 0;
   font-family: var(--font-geist-sans);
-  font-size: var(--text-body-md-size);
-  color: var(--color-text-primary);
-}
-
-.progressLink {
-  font-family: var(--font-geist-sans);
-  font-weight: 600;
   font-size: var(--text-body-sm-size);
-  color: var(--color-interactive);
+  color: var(--color-text-primary);
 }

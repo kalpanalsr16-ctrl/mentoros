@@ -83,6 +83,13 @@ export default async function StudentDashboardPage() {
           </div>
         )}
 
+        {/* Sprint 6: the only link into /app/progress today -- nothing
+            else in the Student shell points there yet (no persistent
+            nav exists, per MinimalShell's own "single-path" design). */}
+        <Link href="/app/progress" className={styles.progressLink}>
+          View full progress →
+        </Link>
+
         {revisionSuggestion && (
           <Card className={styles.suggestionCard}>
             <p className={styles.suggestionLabel}>Suggested</p>
