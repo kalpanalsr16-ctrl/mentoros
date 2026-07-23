@@ -11,7 +11,9 @@ import styles from "./page.module.css";
  * `?studentId=` link from Class Overview / Student Overview (same
  * not-a-top-nav-item precedent as Misconceptions, G10) -- arriving with
  * neither points the teacher back to Classes rather than guessing a
- * target.
+ * target. An optional `?conceptId=` (added for Epic G12's Intervention
+ * Planner deep link) pre-selects that concept in the picker rather than
+ * defaulting to the first one alphabetically.
  */
 export default async function HomeworkGeneratorPage({
   searchParams,
@@ -21,6 +23,7 @@ export default async function HomeworkGeneratorPage({
   const resolvedSearchParams = await searchParams;
   const studentId = typeof resolvedSearchParams.studentId === "string" ? resolvedSearchParams.studentId : undefined;
   const classId = typeof resolvedSearchParams.classId === "string" ? resolvedSearchParams.classId : undefined;
+  const initialConceptId = typeof resolvedSearchParams.conceptId === "string" ? resolvedSearchParams.conceptId : undefined;
 
   if (!studentId && !classId) {
     return (
@@ -57,7 +60,7 @@ export default async function HomeworkGeneratorPage({
       {chapters.length === 0 ? (
         <p className={styles.body}>No published curriculum concepts are available yet.</p>
       ) : (
-        <HomeworkForm chapters={chapters} studentId={studentId} classId={classId} />
+        <HomeworkForm chapters={chapters} studentId={studentId} classId={classId} initialConceptId={initialConceptId} />
       )}
     </div>
   );

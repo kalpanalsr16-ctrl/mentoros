@@ -21,12 +21,16 @@ export function HomeworkForm({
   chapters,
   studentId,
   classId,
+  initialConceptId,
 }: {
   chapters: ChapterGroup[];
   studentId?: string;
   classId?: string;
+  initialConceptId?: string;
 }) {
-  const [conceptId, setConceptId] = useState(chapters[0]?.concepts[0]?.conceptId ?? "");
+  const allConceptIds = chapters.flatMap((c) => c.concepts.map((concept) => concept.conceptId));
+  const defaultConceptId = initialConceptId && allConceptIds.includes(initialConceptId) ? initialConceptId : (chapters[0]?.concepts[0]?.conceptId ?? "");
+  const [conceptId, setConceptId] = useState(defaultConceptId);
   const [difficulty, setDifficulty] = useState<string[]>(["Medium"]);
   const [status, setStatus] = useState<"idle" | "generating" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
