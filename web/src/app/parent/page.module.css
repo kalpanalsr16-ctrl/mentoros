@@ -5,29 +5,37 @@
   padding: var(--space-8) 0;
 }
 
+.body {
+  margin: 0;
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-lg-size);
+  color: var(--color-text-secondary);
+}
+
 .section {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
 }
 
 .sectionHeading {
   margin: 0;
-  font-family: var(--font-geist-sans);
-  font-weight: 600;
-  font-size: var(--text-body-md-size);
+  font-family: var(--font-fraunces);
+  font-size: var(--text-display-lg-size);
+  line-height: var(--text-display-lg-leading);
   color: var(--color-text-primary);
 }
 
 .list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-3);
 }
 
-.row {
+.summaryCard {
   display: flex;
   flex-direction: column;
+  gap: var(--space-3);
 }
 
 .childLink {
@@ -35,6 +43,21 @@
   font-weight: 600;
   font-size: var(--text-body-md-size);
   color: var(--color-text-primary);
+}
+
+.bulletList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.bulletItem {
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-md-size);
+  color: var(--color-text-secondary);
 }
 
 .childrenLink {
