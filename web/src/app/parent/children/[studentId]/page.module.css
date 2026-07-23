@@ -100,3 +100,46 @@
 .strengthItem {
   display: inline-flex;
 }
+
+.recommendationCard {
+  width: 100%;
+}
+
+.recommendationText {
+  margin: 0;
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-lg-size);
+  color: var(--color-text-primary);
+}
+
+.revisionCard {
+  width: 100%;
+}
+
+.revisionList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.revisionItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.revisionConcept {
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-md-size);
+  color: var(--color-text-primary);
+}
+
+.achievementRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
