@@ -2,39 +2,33 @@ import type { createClient } from "@/lib/supabase/server";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
-export type CreateLinkRequestResult = { ok: true } | { ok: false; error: string };
+export type CreateLinkRequestResult = { status: "pending" } | { status: "rate_limited" };
 
 /**
- * `POST /api/parent/link-request` (Epic H2) -- docs/ui-architecture/
- * 10_API_Contracts.md: "creates the parent_links row; does NOT grant
- * access until the (unresolved, see 00_Overview.md) verification step
- * completes." This function only ever creates a `pending` row -- there
- * is no path anywhere in this codebase that moves it to `verified`.
+ * `POST /api/parent/link-request` (Epic H2, rewritten for the approved
+ * Parent Verification & Consent design). Calls create_link_request() --
+ * the SECURITY DEFINER function that performs the rate-limit check,
+ * the insert, and the paired audit-log write atomically -- rather than
+ * inserting directly (0015's direct INSERT policy was dropped in
+ * 0016_parent_link_verification.sql specifically so this rate limit
+ * can't be bypassed).
  *
- * Deliberately does not validate that studentId belongs to an actual
- * student account: unlike Teacher Studio's addStudentToClass (which
- * could re-check profiles after insert, since class_students grants
- * that visibility), no RLS policy makes a target student's profile
- * visible to an unverified parent -- there's nothing to check against
- * yet. That validation naturally belongs to whichever future sprint
- * designs the real verification flow, not invented here.
+ * Deliberately collapses every outcome except rate-limiting into the
+ * same { status: "pending" } response: whether the target studentId
+ * doesn't exist, already has an active request, or was newly created,
+ * the caller sees an identical result. This is the anti-enumeration
+ * requirement -- the system must never expose whether a given student
+ * id exists via this endpoint's response shape.
  */
-export async function createLinkRequest(
-  supabase: SupabaseServerClient,
-  parentId: string,
-  studentId: string,
-): Promise<CreateLinkRequestResult> {
-  const { error } = await supabase.from("parent_links").insert({ parent_id: parentId, student_id: studentId, status: "pending" });
+export async function createLinkRequest(supabase: SupabaseServerClient, studentId: string): Promise<CreateLinkRequestResult> {
+  const { error } = await supabase.rpc("create_link_request", { p_student_id: studentId });
 
-  if (error) {
-    if (error.code === "23505") {
-      return { ok: false, error: "You've already sent a link request for this student." };
-    }
-    if (error.code === "23503") {
-      return { ok: false, error: "No account found with that ID." };
-    }
-    return { ok: false, error: "Couldn't create that link request." };
+  if (error?.message?.includes("rate_limited")) {
+    return { status: "rate_limited" };
   }
 
-  return { ok: true };
+  // Any other error (nonexistent student, an already-active request for
+  // this pair, etc.) intentionally collapses into the same outcome as
+  // success.
+  return { status: "pending" };
 }
