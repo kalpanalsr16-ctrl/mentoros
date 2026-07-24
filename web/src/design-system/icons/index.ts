@@ -27,4 +27,10 @@ export {
   RotateCcw as RetryIcon,
   Square as CancelIcon,
   Flame as StreakIcon,
+  Award as AchievementIcon,
+  NotebookPen as LessonPlanIcon,
+  ClipboardCheck as AssessmentBuilderIcon,
+  Plus as AddIcon,
+  UserMinus as RemoveStudentIcon,
+  Printer as PrintIcon,
 } from "lucide-react";
