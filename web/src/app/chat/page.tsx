@@ -71,12 +71,18 @@ export default async function ChatPage({
   // here with ?autosend=diagnostic rather than relying on the student to
   // notice and send a pre-filled message themselves -- ChatShell sends it
   // once on mount, through the same unmodified pipeline any typed message
-  // goes through.
+  // goes through. Epic F6's "Revise now" reuses the same mechanism with
+  // ?autosend=revise&concept=<name> rather than inventing a second one.
   const resolvedSearchParams = await searchParams;
-  const autoSendMessage =
-    resolvedSearchParams.autosend === "diagnostic"
-      ? "I'd like to start with a quick diagnostic to see where I'm starting."
-      : undefined;
+  const conceptParam = resolvedSearchParams.concept;
+  const conceptName = typeof conceptParam === "string" ? conceptParam : undefined;
+
+  let autoSendMessage: string | undefined;
+  if (resolvedSearchParams.autosend === "diagnostic") {
+    autoSendMessage = "I'd like to start with a quick diagnostic to see where I'm starting.";
+  } else if (resolvedSearchParams.autosend === "revise" && conceptName) {
+    autoSendMessage = `Can you help me revisit ${conceptName}?`;
+  }
 
   return (
     <div
