@@ -704,6 +704,12 @@ async function runTutoringPipeline(params: {
           studentId,
           conversationId: activeConversationId,
           payload: {
+            // Epic F5 (Practice History): additive only -- every existing
+            // field above is untouched. Without a concept identity here,
+            // Practice History would have no way to show which concept
+            // each past practice set was for.
+            conceptId: planningContext?.concept?.id ?? null,
+            conceptName: planningContext?.concept?.name ?? practiceResult.response.topic,
             model: practiceResult.model,
             difficulty: practiceResult.response.difficulty,
             questionCount: practiceResult.response.questions.length,
@@ -736,11 +742,20 @@ async function runTutoringPipeline(params: {
           studentId,
           conversationId: activeConversationId,
           payload: {
+            // Epic F5 (Assessment History): additive only -- every existing
+            // field above is untouched. conceptId/conceptName/misconceptions/
+            // feedback are the full detail Assessment History's
+            // AssessmentFeedbackCard reuse needs; misconceptionCount alone
+            // (already logged above) isn't enough to render that component.
+            conceptId: planningContext?.concept?.id ?? null,
+            conceptName: planningContext?.concept?.name ?? null,
             model: assessmentResult.model,
             masteryScore: assessmentResult.response.masteryScore,
             status: assessmentResult.response.status,
             recommendedNextStep: assessmentResult.response.recommendedNextStep,
             misconceptionCount: assessmentResult.response.misconceptions.length,
+            misconceptions: assessmentResult.response.misconceptions,
+            feedback: assessmentResult.response.feedback,
             inputTokens: assessmentResult.inputTokens,
             outputTokens: assessmentResult.outputTokens,
             estimatedCostUsd: estimateCostUsd(assessmentResult.inputTokens, assessmentResult.outputTokens),

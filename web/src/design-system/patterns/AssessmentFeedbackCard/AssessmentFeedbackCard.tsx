@@ -6,7 +6,7 @@ import { ViewReasoningIcon, RetryIcon } from "@/design-system/icons";
 import type { AssessmentReport, MasteryStatus, RecommendedNextStep } from "@/lib/agents/assessment-agent";
 import styles from "./AssessmentFeedbackCard.module.css";
 
-const STATUS_BADGE: Record<MasteryStatus, BadgeVariant> = {
+export const STATUS_BADGE: Record<MasteryStatus, BadgeVariant> = {
   Mastered: "success",
   Proficient: "success",
   Developing: "brand",
