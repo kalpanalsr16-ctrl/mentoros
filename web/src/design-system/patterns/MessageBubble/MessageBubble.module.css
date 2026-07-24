@@ -1,0 +1,154 @@
+.row {
+  display: flex;
+  width: 100%;
+}
+
+.row.user {
+  justify-content: flex-end;
+}
+.row.assistant,
+.row.safety {
+  justify-content: flex-start;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-width: 80%;
+}
+
+.row.user .column {
+  align-items: flex-end;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-1);
+}
+
+.caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: currentColor;
+  animation: caret-blink 1s step-start infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .caret {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+@keyframes caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.bubble {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-lg-size);
+  line-height: var(--text-body-lg-leading);
+  word-break: break-word;
+}
+
+.user {
+  background: var(--color-interactive);
+  color: var(--color-ink-000);
+  border-bottom-right-radius: var(--radius-sm);
+}
+
+.assistant {
+  background: var(--color-surface-secondary);
+  color: var(--color-text-primary);
+  border-bottom-left-radius: var(--radius-sm);
+}
+
+/* Dedicated, calm treatment -- never styled as an error.
+   docs/design-system/02-Technical-Design-Foundations.md §3.5. */
+.safety {
+  background: var(--color-safety-100);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-safety-600);
+  border-bottom-left-radius: var(--radius-sm);
+}
+
+.safetyLabel {
+  display: block;
+  font-family: var(--font-geist-mono);
+  font-size: var(--text-caption-size);
+  color: var(--color-safety-600);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: var(--space-1);
+}
+
+/* Markdown content styling -- scoped to whatever react-markdown renders
+   inside a bubble. First/last child margins collapsed so a
+   single-paragraph reply (the common case) doesn't carry extra
+   whitespace above/below. */
+.markdown > :first-child {
+  margin-top: 0;
+}
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+.markdown p {
+  margin: var(--space-2) 0;
+}
+.markdown ul,
+.markdown ol {
+  margin: var(--space-2) 0;
+  padding-left: var(--space-5);
+}
+.markdown li {
+  margin-bottom: var(--space-1);
+}
+.markdown strong {
+  font-weight: 700;
+}
+.markdown code {
+  font-family: var(--font-geist-mono);
+  font-size: 0.9em;
+  background: rgba(0, 0, 0, 0.08);
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+}
+.user .markdown code {
+  background: rgba(255, 255, 255, 0.18);
+}
+.markdown pre {
+  overflow-x: auto;
+  background: rgba(0, 0, 0, 0.08);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  margin: var(--space-2) 0;
+}
+.markdown pre code {
+  background: none;
+  padding: 0;
+}
+.markdown h1,
+.markdown h2,
+.markdown h3 {
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-heading-sm-size);
+  margin: var(--space-3) 0 var(--space-1);
+}
+
+/* KaTeX block equations get their own scroll container -- a long
+   equation must never force the whole page to scroll horizontally. */
+.markdown :global(.katex-display) {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: var(--space-1) 0;
+}

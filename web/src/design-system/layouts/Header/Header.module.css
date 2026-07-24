@@ -1,0 +1,60 @@
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-surface);
+  flex-shrink: 0;
+}
+
+@media (min-width: 768px) {
+  .header {
+    padding: var(--space-3) var(--space-8);
+  }
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.wordmark {
+  font-family: var(--font-geist-sans);
+  font-weight: 600;
+  font-size: 1.0625rem;
+  white-space: nowrap;
+}
+
+/* Brand construction rule — docs/design-system/01-Architecture-Design.md
+   §2.3: "Mentor" in primary text color, "OS" in brand indigo. The ONLY
+   approved wordmark treatment; no gradients, shadows, or skew. */
+.wordmarkAccent {
+  color: var(--color-interactive);
+}
+
+.right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+
+.email {
+  font-family: var(--font-geist-sans);
+  font-size: 0.875rem;
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+@media (max-width: 767px) {
+  .email {
+    display: none;
+  }
+}

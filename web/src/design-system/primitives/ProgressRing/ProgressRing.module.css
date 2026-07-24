@@ -1,0 +1,35 @@
+.wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.track {
+  stroke: var(--color-border-subtle);
+  fill: none;
+}
+
+.fill {
+  stroke: var(--color-interactive);
+  fill: none;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  transition: stroke-dashoffset var(--duration-slow) var(--easing-standard);
+}
+
+.fill.success {
+  stroke: var(--color-success-600);
+}
+.fill.warning {
+  stroke: var(--color-warning-600);
+}
+
+.label {
+  position: absolute;
+  font-family: var(--font-geist-mono);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}

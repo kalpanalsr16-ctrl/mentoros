@@ -1,0 +1,23 @@
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-leading);
+  cursor: pointer;
+  min-height: 24px;
+}
+
+.link:hover {
+  color: var(--color-interactive);
+}
+
+.link svg {
+  width: 14px;
+  height: 14px;
+}

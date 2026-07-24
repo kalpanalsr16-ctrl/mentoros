@@ -1,14 +1,8 @@
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+@import "../design-system/tokens/tokens.css";
+/* KaTeX's stylesheet, required for LaTeX rendering in MessageBubble
+   (design-system/patterns/MessageBubble) -- must be imported from a
+   global stylesheet, not a component, per Next.js's CSS import rules. */
+@import "katex/dist/katex.min.css";
 
 html {
   height: 100%;
@@ -26,7 +20,7 @@ body {
   flex-direction: column;
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -45,5 +39,34 @@ a {
 @media (prefers-color-scheme: dark) {
   html {
     color-scheme: dark;
+  }
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+html[data-theme="light"] {
+  color-scheme: light;
+}
+
+/* Accessibility Guidelines §16: every interactive element gets a visible
+   focus state — never `outline: none` without this replacement. */
+:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* Accessibility Guidelines §16: every animation must have a
+   prefers-reduced-motion fallback — enforced globally here so no
+   component can accidentally skip it. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

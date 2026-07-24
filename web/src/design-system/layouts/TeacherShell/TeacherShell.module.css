@@ -1,0 +1,25 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-4);
+  /* Room for the fixed BottomTabBar below `md`. */
+  padding-bottom: calc(var(--space-4) + 64px);
+}
+
+@media (min-width: 768px) {
+  .content {
+    padding: var(--space-8);
+  }
+}
