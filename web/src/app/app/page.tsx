@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getDashboardData } from "@/lib/dashboard/get-dashboard-data";
+import { listPendingRequestsForStudent } from "@/lib/parent-links/list-pending-requests";
 import { PageContainer } from "@/design-system/layouts/PageContainer";
 import { StatTile } from "@/design-system/primitives/StatTile";
 import { AchievementBadge } from "@/design-system/primitives/AchievementBadge";
 import { Card } from "@/design-system/primitives/Card";
+import { Badge } from "@/design-system/primitives/Badge";
 import { ProgressRing } from "@/design-system/primitives/ProgressRing";
 import { StreakIcon } from "@/design-system/icons";
 import buttonStyles from "@/design-system/primitives/Button/Button.module.css";
@@ -25,7 +27,10 @@ export default async function StudentDashboardPage() {
   const { data: claimsData } = await supabase.auth.getClaims();
   const studentId = claimsData!.claims!.sub as string;
 
-  const dashboardData = await getDashboardData(supabase, studentId);
+  const [dashboardData, pendingParentRequests] = await Promise.all([
+    getDashboardData(supabase, studentId),
+    listPendingRequestsForStudent(supabase, studentId),
+  ]);
 
   // Error state: the aggregate failed -- degrade to the one action that
   // always works, per the doc's graceful-degradation rule.
@@ -83,12 +88,45 @@ export default async function StudentDashboardPage() {
           </div>
         )}
 
-        {/* Sprint 6: the only link into /app/progress today -- nothing
-            else in the Student shell points there yet (no persistent
-            nav exists, per MinimalShell's own "single-path" design). */}
-        <Link href="/app/progress" className={styles.progressLink}>
-          View full progress →
-        </Link>
+        {/* Sprint 6/F5/F8/F3/F7/F6: the only links into /app/progress,
+            /app/practice, /app/assessment, /app/profile, /app/settings,
+            /app/roadmap, /app/achievements, and /app/revision today --
+            nothing else in the Student shell points there yet (no
+            persistent nav exists, per MinimalShell's own "single-path"
+            design). */}
+        <div className={styles.historyLinks}>
+          <Link href="/app/roadmap" className={styles.progressLink}>
+            Learning roadmap →
+          </Link>
+          <Link href="/app/achievements" className={styles.progressLink}>
+            Achievements →
+          </Link>
+          <Link href="/app/revision" className={styles.progressLink}>
+            Revision planner →
+          </Link>
+          <Link href="/app/progress" className={styles.progressLink}>
+            View full progress →
+          </Link>
+          <Link href="/app/practice" className={styles.progressLink}>
+            Practice history →
+          </Link>
+          <Link href="/app/assessment" className={styles.progressLink}>
+            Assessment history →
+          </Link>
+          <Link href="/app/profile" className={styles.progressLink}>
+            Edit profile →
+          </Link>
+          <Link href="/app/settings" className={styles.progressLink}>
+            Settings →
+          </Link>
+          <Link href="/app/parent-requests" className={styles.progressLink}>
+            Parent requests
+            {pendingParentRequests.length > 0 && (
+              <Badge variant="warning">{pendingParentRequests.length}</Badge>
+            )}
+            {" →"}
+          </Link>
+        </div>
 
         {revisionSuggestion && (
           <Card className={styles.suggestionCard}>

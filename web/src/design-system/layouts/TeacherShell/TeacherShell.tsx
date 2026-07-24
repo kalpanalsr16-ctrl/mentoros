@@ -1,3 +1,5 @@
+"use client";
+
 import type { ReactNode } from "react";
 import { Header } from "@/design-system/layouts/Header";
 import { Sidebar, BottomTabBar, type NavItem } from "@/design-system/layouts/Sidebar";
