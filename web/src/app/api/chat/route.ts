@@ -259,17 +259,20 @@ export async function POST(request: Request) {
           signal: request.signal,
         });
 
+        // Epic B3: assistant rows can no longer be inserted via a plain
+        // table insert under the student's own session (RLS now rejects
+        // role: 'assistant' outright) -- this SECURITY DEFINER RPC is the
+        // one legitimate path, and re-checks conversation ownership itself
+        // since it runs with elevated privilege.
         const { data: assistantMessage, error: assistantMessageError } = await supabase
-          .from("messages")
-          .insert({
-            conversation_id: activeConversationId,
-            role: "assistant",
-            content: pipelineResult.replyContent,
+          .rpc("insert_assistant_message", {
+            p_conversation_id: activeConversationId,
+            p_content: pipelineResult.replyContent,
             // Sprint 3: lets the AI Transparency Panel look up this turn's
             // trace after a page reload.
-            trace_id: traceId,
+            p_trace_id: traceId,
           })
-          .select("id, role, content, trace_id")
+          .returns<MessageRow[]>()
           .single();
 
         if (assistantMessageError || !assistantMessage) {
