@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Avatar } from "@/design-system/primitives/Avatar";
 import { Button } from "@/design-system/primitives/Button";
 import { ThemeToggle } from "@/design-system/layouts/ThemeToggle";
-import { LogOutIcon } from "@/design-system/icons";
+import { LogOutIcon, TransparencyIcon } from "@/design-system/icons";
 import { useSignOut } from "@/lib/supabase/use-sign-out";
 import styles from "./Header.module.css";
 
@@ -42,6 +42,15 @@ export function Header({ userEmail }: HeaderProps) {
         <Wordmark />
       </div>
       <div className={styles.right}>
+        {/* Epic E6: standalone entry point, per 06_Dashboard_Architecture.md's
+            "reached from Teacher Studio's sidebar and via direct link" --
+            Teacher Studio doesn't exist yet, so Header (present on every
+            authenticated shell except /chat) is the direct-link entry point
+            in the meantime. */}
+        <Link href="/explorer" className={styles.explorerLink}>
+          <TransparencyIcon size={16} aria-hidden="true" />
+          <span>Explorer</span>
+        </Link>
         <ThemeToggle />
         {userEmail && (
           <>

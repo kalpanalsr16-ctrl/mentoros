@@ -43,6 +43,27 @@
   flex-shrink: 0;
 }
 
+.explorerLink {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-geist-sans);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.explorerLink:hover {
+  color: var(--color-interactive);
+}
+
+@media (max-width: 767px) {
+  .explorerLink span {
+    display: none;
+  }
+}
+
 .email {
   font-family: var(--font-geist-sans);
   font-size: 0.875rem;

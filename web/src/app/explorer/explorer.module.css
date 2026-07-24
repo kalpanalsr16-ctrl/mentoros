@@ -1,0 +1,139 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-8) 0;
+}
+
+.heading {
+  margin: 0;
+  font-family: var(--font-fraunces);
+  font-size: var(--text-display-lg-size);
+  line-height: var(--text-display-lg-leading);
+  color: var(--color-text-primary);
+}
+
+.body {
+  margin: 0;
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-lg-size);
+  color: var(--color-text-secondary);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.errorsToggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-sm-size);
+  color: var(--color-text-primary);
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  transition: opacity 150ms ease-out;
+}
+
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-3);
+}
+
+.chartGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-4);
+}
+
+.explorerLayout {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.4fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.sectionLabel {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-geist-mono);
+  font-size: var(--text-caption-size);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-tertiary);
+}
+
+.traceList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.traceRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  width: 100%;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.traceRow:hover {
+  border-color: var(--color-border);
+}
+
+.traceRowSelected {
+  border-color: var(--color-interactive);
+  outline: 2px solid var(--color-interactive);
+  outline-offset: -1px;
+}
+
+.traceId {
+  font-family: var(--font-geist-mono);
+  font-size: var(--text-caption-size);
+  color: var(--color-text-secondary);
+}
+
+.traceMeta {
+  margin-left: auto;
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-sm-size);
+  color: var(--color-text-tertiary);
+}
+
+.traceDetail {
+  display: flex;
+  flex-direction: column;
+}
+
+.detailNodes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.detailSkeletons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+@media (max-width: 800px) {
+  .explorerLayout {
+    grid-template-columns: 1fr;
+  }
+}
