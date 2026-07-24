@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { CloseIcon } from "@/design-system/icons";
 import { Skeleton } from "@/design-system/primitives/Skeleton";
-import { AgentTraceNode } from "@/design-system/patterns/AgentTraceNode";
-import { EvaluationScoreCard } from "@/design-system/patterns/EvaluationScoreCard";
+import { TraceNodeList } from "./TraceNodeList";
+import { formatCostUsd } from "@/lib/observability/format";
 import type { TraceView } from "@/lib/observability/transparency-provider";
 import styles from "./TransparencyPanel.module.css";
 
@@ -12,10 +12,6 @@ export type TransparencyPanelProps = {
   traceId: string | null;
   onClose: () => void;
 };
-
-function formatCost(costUsd: number): string {
-  return costUsd < 0.001 ? "<$0.001" : `$${costUsd.toFixed(3)}`;
-}
 
 /**
  * The "How I answered" panel (docs/ui-architecture/07_AI_Transparency_
@@ -65,7 +61,7 @@ export function TransparencyPanel({ traceId, onClose }: TransparencyPanelProps) 
             <p className={styles.summaryLine}>
               {traceView.summary.totalLatencyMs !== null ? `${(traceView.summary.totalLatencyMs / 1000).toFixed(1)}s` : "—"}
               {" · "}
-              {formatCost(traceView.summary.totalCostUsd)}
+              {formatCostUsd(traceView.summary.totalCostUsd)}
               {" · "}
               {traceView.summary.totalInputTokens + traceView.summary.totalOutputTokens} tok
               {traceView.summary.errorCount > 0 && ` · ${traceView.summary.errorCount} error${traceView.summary.errorCount > 1 ? "s" : ""}`}
@@ -89,13 +85,7 @@ export function TransparencyPanel({ traceId, onClose }: TransparencyPanelProps) 
         {status === "error" && <p className={styles.empty}>Couldn&apos;t load this trace.</p>}
         {status === "ready" && traceView && (
           <div className={styles.nodes}>
-            {traceView.nodes.map((node) =>
-              node.agent === "Evaluation" ? (
-                <EvaluationScoreCard key={node.agent} node={node} />
-              ) : (
-                <AgentTraceNode key={node.agent} node={node} />
-              ),
-            )}
+            <TraceNodeList nodes={traceView.nodes} />
           </div>
         )}
       </div>
