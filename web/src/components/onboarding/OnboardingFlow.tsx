@@ -4,36 +4,17 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/design-system/primitives/Button";
 import { LinkButton } from "@/design-system/primitives/LinkButton";
-import { ChipSelect, type ChipOption } from "@/design-system/primitives/ChipSelect";
+import { ChipSelect } from "@/design-system/primitives/ChipSelect";
 import {
   nextStep,
   isSkippable,
   buildProfilePatchBody,
+  GRADE_OPTIONS,
+  GOAL_OPTIONS,
+  STYLE_OPTIONS,
   type OnboardingStep,
 } from "@/lib/onboarding/onboarding-flow";
 import styles from "./OnboardingFlow.module.css";
-
-const GRADE_OPTIONS: ChipOption[] = Array.from({ length: 10 }, (_, i) => ({
-  value: String(i + 1),
-  label: `Grade ${i + 1}`,
-}));
-
-const GOAL_OPTIONS: ChipOption[] = [
-  { value: "ImproveGrades", label: "Improve my grades" },
-  { value: "BuildConfidence", label: "Build confidence" },
-  { value: "PrepareForExams", label: "Prepare for exams" },
-  { value: "LearnAhead", label: "Learn ahead of class" },
-  { value: "CatchUp", label: "Catch up on the basics" },
-  { value: "ForFun", label: "Just for fun" },
-];
-
-const STYLE_OPTIONS: ChipOption[] = [
-  { value: "Visual", label: "Pictures and diagrams" },
-  { value: "Conversational", label: "Talking it through" },
-  { value: "StepByStep", label: "Step by step" },
-  { value: "ExampleFirst", label: "Show me an example first" },
-  { value: "PracticeFirst", label: "Let me try it myself" },
-];
 
 /**
  * Welcome experience + onboarding (Sprint 4, Epic F1). Writes to

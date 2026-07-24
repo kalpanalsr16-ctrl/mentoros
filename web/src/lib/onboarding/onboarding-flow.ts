@@ -1,3 +1,5 @@
+import type { ChipOption } from "@/design-system/primitives/ChipSelect";
+
 /**
  * Pure step/data logic for the onboarding flow (Sprint 4, Epic F1),
  * separated from OnboardingFlow.tsx so it's directly unit-testable
@@ -6,6 +8,34 @@
  */
 
 export type OnboardingStep = "welcome" | "grade" | "goals" | "style" | "diagnostic";
+
+/**
+ * Shared with app/app/profile/ProfileForm.tsx (Epic F8) -- Profile is
+ * "this same flow's persistent, editable form" per
+ * 02_Student_Experience.md's Profile section, so it reuses these exact
+ * option sets rather than maintaining a second copy that could drift.
+ */
+export const GRADE_OPTIONS: ChipOption[] = Array.from({ length: 10 }, (_, i) => ({
+  value: String(i + 1),
+  label: `Grade ${i + 1}`,
+}));
+
+export const GOAL_OPTIONS: ChipOption[] = [
+  { value: "ImproveGrades", label: "Improve my grades" },
+  { value: "BuildConfidence", label: "Build confidence" },
+  { value: "PrepareForExams", label: "Prepare for exams" },
+  { value: "LearnAhead", label: "Learn ahead of class" },
+  { value: "CatchUp", label: "Catch up on the basics" },
+  { value: "ForFun", label: "Just for fun" },
+];
+
+export const STYLE_OPTIONS: ChipOption[] = [
+  { value: "Visual", label: "Pictures and diagrams" },
+  { value: "Conversational", label: "Talking it through" },
+  { value: "StepByStep", label: "Step by step" },
+  { value: "ExampleFirst", label: "Show me an example first" },
+  { value: "PracticeFirst", label: "Let me try it myself" },
+];
 
 /**
  * "Skippable after step 2" (docs/design-system/04-UX-Design-Experiences.md

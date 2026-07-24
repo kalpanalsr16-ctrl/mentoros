@@ -1,13 +1,29 @@
 import { createClient } from "@/lib/supabase/server";
+import { getProfileData } from "@/lib/profile/get-profile-data";
+import { buildProfileUpdate } from "@/lib/profile/build-profile-update";
 
-const VALID_CONFIDENCE = ["Low", "Medium", "High"] as const;
-const VALID_LEARNING_STYLE = [
-  "Visual",
-  "Conversational",
-  "StepByStep",
-  "ExampleFirst",
-  "PracticeFirst",
-] as const;
+/**
+ * Read path for the Profile screen (Epic F8) -- Onboarding (Sprint 4)
+ * only ever needed the write side. Shares getProfileData() with
+ * app/app/profile/page.tsx's own server-side render.
+ */
+export async function GET() {
+  const supabase = await createClient();
+  const { data: claimsData } = await supabase.auth.getClaims();
+
+  if (!claimsData?.claims) {
+    return Response.json({ error: "Not signed in." }, { status: 401 });
+  }
+
+  const studentId = claimsData.claims.sub as string;
+  const profileData = await getProfileData(supabase, studentId);
+
+  if (!profileData) {
+    return Response.json({ error: "Could not load your profile." }, { status: 500 });
+  }
+
+  return Response.json(profileData);
+}
 
 /**
  * Onboarding's write path (Sprint 4, Epic F1) -- writes to `learner_profiles`,
@@ -35,41 +51,12 @@ export async function PATCH(request: Request) {
   const studentId = claimsData.claims.sub as string;
   const body = await request.json().catch(() => null);
 
-  if (!body || typeof body !== "object") {
-    return Response.json({ error: "Invalid request body." }, { status: 400 });
+  const result = buildProfileUpdate(studentId, body);
+  if (!result.ok) {
+    return Response.json({ error: result.error }, { status: 400 });
   }
 
-  const update: Record<string, unknown> = { id: studentId };
-
-  if (body.grade !== undefined) {
-    if (typeof body.grade !== "number" || body.grade < 1 || body.grade > 12) {
-      return Response.json({ error: "grade must be a number between 1 and 12." }, { status: 400 });
-    }
-    update.grade = body.grade;
-  }
-
-  if (body.confidence !== undefined) {
-    if (!VALID_CONFIDENCE.includes(body.confidence)) {
-      return Response.json({ error: "Invalid confidence value." }, { status: 400 });
-    }
-    update.confidence = body.confidence;
-  }
-
-  if (body.preferredLearningStyle !== undefined) {
-    if (!VALID_LEARNING_STYLE.includes(body.preferredLearningStyle)) {
-      return Response.json({ error: "Invalid preferredLearningStyle value." }, { status: 400 });
-    }
-    update.preferred_learning_style = body.preferredLearningStyle;
-  }
-
-  if (body.learningGoals !== undefined) {
-    if (!Array.isArray(body.learningGoals) || !body.learningGoals.every((g: unknown) => typeof g === "string")) {
-      return Response.json({ error: "learningGoals must be an array of strings." }, { status: 400 });
-    }
-    update.learning_goals = body.learningGoals;
-  }
-
-  const { error } = await supabase.from("learner_profiles").upsert(update);
+  const { error } = await supabase.from("learner_profiles").upsert(result.update);
 
   if (error) {
     return Response.json({ error: "Could not save your profile." }, { status: 500 });
