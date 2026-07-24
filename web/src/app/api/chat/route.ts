@@ -259,6 +259,16 @@ export async function POST(request: Request) {
           signal: request.signal,
         });
 
+        if (pipelineResult.cancelled) {
+          // Cancel (Sprint 4): the student stopped generation, which is not
+          // a failure -- unlike buildLLMFailureReply()'s fallback, a
+          // cancelled turn produced no reply at all, so nothing is saved or
+          // sent. Persisting a fallback message here would resurface on the
+          // next page load as if the system had failed, misrepresenting a
+          // voluntary Cancel as an error.
+          return;
+        }
+
         // Epic B3: assistant rows can no longer be inserted via a plain
         // table insert under the student's own session (RLS now rejects
         // role: 'assistant' outright) -- this SECURITY DEFINER RPC is the
@@ -351,6 +361,10 @@ type PipelineResult = {
   practiceSetPayload?: PracticeSet;
   assessmentReportPayload?: AssessmentReport;
   masteryUpdatePayload?: MasteryUpdatePayload;
+  // Set only when the student cancelled generation (signal aborted) --
+  // distinct from every other field above, which the caller ignores
+  // entirely when this is true.
+  cancelled?: boolean;
 };
 
 /**
@@ -940,6 +954,18 @@ async function runTutoringPipeline(params: {
 
         if (llmResult.success) {
           replyContent = llmResult.content;
+        } else if (llmResult.reason === "cancelled") {
+          // The student clicked Cancel -- not a failure, so it doesn't get
+          // buildLLMFailureReply()'s fallback treatment below. The caller
+          // (route.ts's POST handler) checks `cancelled` and skips saving
+          // any assistant message entirely.
+          return {
+            replyContent: "",
+            replyKind,
+            llmMetadata,
+            safe: safetyAssessment.safe,
+            cancelled: true,
+          };
         } else {
           // Honest, saved fallback -- mirrors the same principle M0-06 already
           // applies to the placeholder reply and M0-08 applies to safety
