@@ -1,0 +1,149 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-8) 0;
+}
+
+.backLink {
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--color-interactive);
+}
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.heading {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  font-family: var(--font-fraunces);
+  font-size: var(--text-display-lg-size);
+  line-height: var(--text-display-lg-leading);
+  color: var(--color-text-primary);
+}
+
+.gradeTag {
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-md-size);
+  font-weight: 400;
+  color: var(--color-text-tertiary);
+}
+
+.body {
+  margin: 0;
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-lg-size);
+  color: var(--color-text-secondary);
+}
+
+.attentionBanner,
+.startBanner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.attentionText {
+  margin: 0;
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-md-size);
+  color: var(--color-text-primary);
+}
+
+.sectionLabel {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-geist-mono);
+  font-size: var(--text-caption-size);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-tertiary);
+}
+
+.chapterCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.chapterTitle {
+  margin: 0;
+  font-family: var(--font-geist-mono);
+  font-size: var(--text-caption-size);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-tertiary);
+}
+
+.conceptGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--space-4);
+}
+
+.conceptItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: center;
+}
+
+.conceptName {
+  margin: 0;
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-sm-size);
+  color: var(--color-text-primary);
+}
+
+.misconceptionList {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-md-size);
+  color: var(--color-text-primary);
+}
+
+.assessmentList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.assessmentEntry {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.assessmentHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.assessmentConcept {
+  margin: 0;
+  font-family: var(--font-geist-sans);
+  font-weight: 600;
+  font-size: var(--text-body-md-size);
+  color: var(--color-text-primary);
+}
+
+.assessmentDate {
+  margin-left: auto;
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-sm-size);
+  color: var(--color-text-tertiary);
+}
