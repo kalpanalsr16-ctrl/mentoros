@@ -77,10 +77,13 @@ No engineering background is assumed. Terms like "API," "vendor," or "serverless
               └───────────────────┘
 
               Hosting: Vercel (runs the application, staging + production)
-              Watching for problems: Sentry (errors) + Langfuse (AI quality, from M1)
+              Watching for problems: Sentry (errors) + Observability Agent/AI
+              Transparency Panel (AI quality, in-product, shipped M9+) —
+              Langfuse (AI quality, engineering-side) proposed for Phase 5,
+              not yet implemented — see §10
 ```
 
-The whole system is two vendors deep for almost everything: **Vercel** runs the code, **Supabase** holds the data, **Anthropic** provides the intelligence. Everything else (Sentry, Langfuse) is a focused add-on, not a foundation.
+The whole system is two vendors deep for almost everything: **Vercel** runs the code, **Supabase** holds the data, **Anthropic** provides the intelligence. Everything else (Sentry, the in-product Observability Agent, and eventually Langfuse) is a focused add-on, not a foundation.
 
 ---
 
@@ -239,15 +242,21 @@ Rather than adding a fourth specialized vendor for this, Postgres has a well-est
 
 ## 10. Monitoring & Observability — Knowing When Something's Wrong
 
-**Recommendation: Sentry (from M0) for application errors, plus Langfuse (from M1) for AI-specific quality tracking.**
+**Recommendation (reconciled — see Change Log): Sentry (from M0) for application errors, plus the in-product Observability Agent + AI Transparency Panel (shipped, M9 / post-M9 Phase 2) for real-time AI-quality visibility. Langfuse remains a proposed addition, not yet implemented, scoped to Phase 5's engineering-side evaluation platform.**
 
-**Why two tools, not one:** They watch for different kinds of problems. **Sentry** is a widely used, simple-to-add service that catches ordinary software crashes — a database connection failing, a page throwing an unexpected error — and is useful from the very first milestone, before there's any AI logic to worry about. **Langfuse** is purpose-built for a different job: tracking what actually happened inside an AI call — how long it took, how many tokens it used, how much it cost, and (later) how good the response actually was. That second kind of visibility only becomes relevant once real AI calls exist, starting in Milestone 1.
+This section originally recommended Langfuse (from M1) as the AI-quality tracking tool, and explicitly called building custom dashboards from the raw events table "rejected for now." Neither happened as written: Langfuse was never integrated — no account, credentials, or code for it exist anywhere in this repository — and M9 built exactly the custom, events-table-based approach this section had called rejected. [15_Phase2_Roadmap.md](15_Phase2_Roadmap.md) surfaced this as an unresolved documentation conflict; the entry below is that reconciliation, split into what's actually shipped versus what's still only proposed.
 
-Langfuse maps directly onto the "Observability State" fields already described in [13_System_State_Model.md](13_System_State_Model.md) — trace ID, latency, token usage, cost — and sets up Milestone 7's Evaluation Agent work well in advance, since Langfuse also supports scoring and reviewing responses over time. The architecture docs' own "Future Enhancements" sections mention exactly this kind of tool by name.
+**Shipped: Sentry, for application errors.** Unaffected by this reconciliation — a widely used, simple-to-add service that catches ordinary software crashes (a database connection failing, a page throwing an unexpected error), useful from the very first milestone, before there's any AI logic to worry about.
 
-**What we considered instead:** Building custom dashboards from the raw events table was rejected for now — it's real engineering work to build well, and both Sentry and Langfuse offer free tiers that comfortably cover a pilot's volume. Revisit only if usage grows large enough that either tool's free tier becomes a real cost.
+**Shipped: the Observability Agent + AI Transparency Panel, for in-product AI-quality visibility.** Two parts, built in two stages:
+- The **Observability Agent** ([05_Agent_Architecture/14_Observability_Agent.md](05_Agent_Architecture/14_Observability_Agent.md)) is a read-only aggregation function (`getObservabilityReport()`) that reconstructs a per-turn execution trace — pipeline stage, latency, tokens, cost, safety/evaluation outcomes — from the existing `events` table. It shipped in M9 as a post-hoc report, not part of the request pipeline, and needs no external vendor.
+- The **AI Transparency Panel** (post-M9, this doc's Phase 2) is the in-product UI built on top of that report: a collapsible panel in the chat screen (off by default for students), a per-message "View reasoning" action, and a standalone Architecture Explorer page for browsing recent traces — all reading `getObservabilityReport()` through a thin, auth-checked API route.
 
-**When it's needed:** Sentry — 🟢 Required for M0. Langfuse — ⚪ Deferred to M1 (no AI calls exist before then).
+Together these are real-time, per-turn, in-product visibility — a student or teacher inspecting one conversation's trace right now, in the app. That is a different job from what Langfuse below is for.
+
+**Proposed, not yet implemented: Langfuse, for engineering-side AI-quality monitoring.** Per the "run both" decision in [15_Phase2_Roadmap.md](15_Phase2_Roadmap.md), Langfuse (or an equivalent) remains scoped to Phase 5's evaluation platform — an offline regression harness, benchmark datasets, and AI-quality trend reports evaluated over time, for engineering/product use, not the in-app panel above. It maps onto the same "Observability State" fields in [13_System_State_Model.md](13_System_State_Model.md) — trace ID, latency, token usage, cost — but nothing beyond this documentation exists for it yet. Revisit once Phase 5 is actually scoped; there is no current dependency on it.
+
+**When it's needed:** Sentry — 🟢 Required for M0 (shipped). Observability Agent / AI Transparency Panel — 🟢 Shipped (M9 / post-M9 Phase 2). Langfuse — ⚪ Proposed for Phase 5, not yet implemented.
 
 ---
 
@@ -293,7 +302,8 @@ The production Supabase project — the one real students' data eventually lives
 | Deployment & Hosting | Vercel | M0 |
 | Logging | Events table in Supabase Postgres | M0 |
 | Monitoring — errors | Sentry | M0 |
-| Monitoring — AI quality | Langfuse | M1 |
+| Monitoring — AI quality (in-product) | Observability Agent + AI Transparency Panel | Shipped, M9 / post-M9 Phase 2 |
+| Monitoring — AI quality (engineering-side) | Langfuse (proposed, not yet implemented) | Phase 5 |
 | Secrets Management | Vercel environment variables + `.env.local` | M0 |
 | Local Development | Second ("development") Supabase project | M0 |
 
@@ -349,3 +359,4 @@ Once this checklist is complete, Milestone 0's actual feature work (accounts, ch
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | 2026-07-09 | Initial draft — full stack decided for M0, with forward notes through M9 |
+| 1.1 | 2026-07-24 | B4 (Repository Hardening): reconciled §10's Langfuse recommendation with what actually shipped — Langfuse was never integrated; M9 built the custom Observability Agent this section had called "rejected," and post-M9 Phase 2 work added the in-product AI Transparency Panel on top of it. Langfuse is now documented as a proposed, not-yet-implemented Phase 5 (engineering-side) addition, per [15_Phase2_Roadmap.md](15_Phase2_Roadmap.md)'s "run both" decision. Documentation only — no code or credentials changed. |
