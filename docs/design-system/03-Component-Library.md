@@ -42,6 +42,7 @@ Lifecycle stage 3 of 4 (Technical Design), continued. This is an inventory and s
 | **StatTile** | Card | Dashboard metric display — label (`caption`), value (`heading-lg` or `mono-md` if numeric/technical), optional trend indicator. |
 | **PracticeQuestionCard** | Card + Input/Radio | Structured rendering of Practice Agent output — replaces today's flattened plain-text reply. |
 | **AssessmentFeedbackCard** | Card + Badge + Progress ring | Structured rendering of Assessment Agent output (mastery score, status, misconceptions). |
+| **RoadmapPath** | Badge + Progress ring, connected by a line | Learning Roadmap's chapter → concept sequence (doc 02) — one node per concept, `done`/`current`/`next` status per `08_Component_Ownership.md`'s proposed addition, formally added here per that document's own instruction before Sprint 9 (Epic F3) implementation. |
 | **EmptyState** | — | See doc 05. |
 | **LoadingState** | Skeleton/Spinner | See doc 05. |
 | **ErrorState** | Card + Button | See doc 05. |

@@ -1,0 +1,53 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-8) 0;
+}
+
+.heading {
+  margin: 0;
+  font-family: var(--font-fraunces);
+  font-size: var(--text-display-lg-size);
+  line-height: var(--text-display-lg-leading);
+  color: var(--color-text-primary);
+}
+
+.body {
+  margin: 0;
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-lg-size);
+  color: var(--color-text-secondary);
+}
+
+.chapterCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  overflow-x: auto;
+}
+
+.chapterTitle {
+  margin: 0;
+  font-family: var(--font-geist-mono);
+  font-size: var(--text-caption-size);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-tertiary);
+}
+
+.skeletonRow {
+  display: flex;
+  gap: var(--space-6);
+}
+
+.fallbackList {
+  margin: 0;
+  padding-left: var(--space-5);
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-md-size);
+  color: var(--color-text-primary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
