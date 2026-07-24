@@ -1,0 +1,166 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-8) 0;
+}
+
+.backLink {
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--color-interactive);
+}
+
+.heading {
+  margin: 0;
+  font-family: var(--font-fraunces);
+  font-size: var(--text-display-lg-size);
+  line-height: var(--text-display-lg-leading);
+  color: var(--color-text-primary);
+}
+
+.body {
+  margin: 0;
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-lg-size);
+  color: var(--color-text-secondary);
+}
+
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-3);
+}
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.headerLinks {
+  display: flex;
+  gap: var(--space-4);
+}
+
+.sectionLabel {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-geist-mono);
+  font-size: var(--text-caption-size);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-tertiary);
+}
+
+.rosterList,
+.conceptList,
+.activityFeed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.rosterRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.rosterLink {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 1;
+  color: inherit;
+}
+
+.rosterName {
+  font-family: var(--font-geist-sans);
+  font-weight: 600;
+  font-size: var(--text-body-md-size);
+  color: var(--color-text-primary);
+}
+
+.conceptRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.conceptName {
+  font-family: var(--font-geist-sans);
+  font-weight: 600;
+  font-size: var(--text-body-md-size);
+  color: var(--color-text-primary);
+}
+
+.conceptMeta {
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-sm-size);
+  color: var(--color-text-tertiary);
+}
+
+.activityRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.activityText {
+  margin: 0;
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-md-size);
+  color: var(--color-text-primary);
+}
+
+.activityTime {
+  margin: 0;
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-sm-size);
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+}
+
+.addForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.input {
+  font: inherit;
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-md-size);
+  color: var(--color-text-primary);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  flex: 1 1 240px;
+}
+
+.errorBanner {
+  margin: 0;
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-sm-size);
+  color: var(--color-danger-600);
+  width: 100%;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
