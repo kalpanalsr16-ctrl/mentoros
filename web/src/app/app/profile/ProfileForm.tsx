@@ -13,6 +13,14 @@ export function ProfileForm({ initial }: { initial: ProfileData }) {
   const [style, setStyle] = useState<string[]>(initial.preferredLearningStyle ? [initial.preferredLearningStyle] : []);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
+  /** Clears a stale "Saved."/error message the moment the form no longer
+   * matches what was last persisted -- without this, editing a chip after
+   * a successful save left "Saved." on screen describing a state that no
+   * longer matched what was actually selected. */
+  function resetStatus() {
+    setStatus((current) => (current === "saved" || current === "error" ? "idle" : current));
+  }
+
   async function handleSave() {
     setStatus("saving");
     try {
@@ -44,17 +52,42 @@ export function ProfileForm({ initial }: { initial: ProfileData }) {
     <div className={styles.form}>
       <section className={styles.field}>
         <h2 className={styles.fieldLabel}>Grade</h2>
-        <ChipSelect options={GRADE_OPTIONS} value={grade} onChange={setGrade} aria-label="Grade" />
+        <ChipSelect
+          options={GRADE_OPTIONS}
+          value={grade}
+          onChange={(next) => {
+            setGrade(next);
+            resetStatus();
+          }}
+          aria-label="Grade"
+        />
       </section>
 
       <section className={styles.field}>
         <h2 className={styles.fieldLabel}>What brings you here?</h2>
-        <ChipSelect options={GOAL_OPTIONS} value={goals} onChange={setGoals} multi aria-label="Learning goals" />
+        <ChipSelect
+          options={GOAL_OPTIONS}
+          value={goals}
+          onChange={(next) => {
+            setGoals(next);
+            resetStatus();
+          }}
+          multi
+          aria-label="Learning goals"
+        />
       </section>
 
       <section className={styles.field}>
         <h2 className={styles.fieldLabel}>How do you like to learn?</h2>
-        <ChipSelect options={STYLE_OPTIONS} value={style} onChange={setStyle} aria-label="Learning preference" />
+        <ChipSelect
+          options={STYLE_OPTIONS}
+          value={style}
+          onChange={(next) => {
+            setStyle(next);
+            resetStatus();
+          }}
+          aria-label="Learning preference"
+        />
       </section>
 
       {status === "error" && <p className={styles.errorBanner}>Couldn&apos;t save your profile. Please try again.</p>}

@@ -73,3 +73,11 @@
   font-size: var(--text-body-sm-size);
   color: var(--color-danger-600);
 }
+
+.successNote {
+  margin: 0;
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--color-success-600);
+}

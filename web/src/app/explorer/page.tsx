@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getRecentTraces } from "@/lib/observability/get-recent-traces";
 import { MinimalShell } from "@/design-system/layouts/MinimalShell";
+import { resolveShellForRole } from "@/lib/auth/resolve-shell";
 import { ExplorerView } from "./ExplorerView";
 
 /**
@@ -26,8 +27,19 @@ export default async function ExplorerPage() {
   const initialData = await getRecentTraces(supabase, {});
   const email = claimsData.claims.email as string | undefined;
 
+  // Explorer is reachable by both students and teachers, unlike every
+  // other MinimalShell/TeacherShell caller (each of which only ever
+  // serves one role) -- so the wordmark's home target has to be resolved
+  // per-request rather than hardcoded.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", claimsData.claims.sub as string)
+    .single();
+  const homeHref = resolveShellForRole(profile?.role ?? "student");
+
   return (
-    <MinimalShell userEmail={email}>
+    <MinimalShell userEmail={email} homeHref={homeHref}>
       <ExplorerView initialData={initialData} />
     </MinimalShell>
   );

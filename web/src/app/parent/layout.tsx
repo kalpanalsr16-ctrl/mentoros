@@ -25,5 +25,9 @@ export default async function ParentLayout({ children }: { children: React.React
 
   const email = data.claims.email as string | undefined;
 
-  return <MinimalShell userEmail={email}>{children}</MinimalShell>;
+  return (
+    <MinimalShell userEmail={email} homeHref="/parent">
+      {children}
+    </MinimalShell>
+  );
 }

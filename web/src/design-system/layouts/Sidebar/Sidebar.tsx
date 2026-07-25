@@ -11,8 +11,33 @@ export type NavItem = {
   icon: ComponentType<{ size?: number; "aria-hidden"?: boolean }>;
 };
 
-function isActive(pathname: string, href: string): boolean {
-  return href === "/" ? pathname === "/" : pathname.startsWith(href);
+/**
+ * Picks, at most, one active item per pathname. Plain
+ * `pathname.startsWith(href)` broke this: Dashboard's own href ("/studio")
+ * is a string-prefix of every other item's href too, so it stayed active
+ * on every Studio route -- including deep routes with no nav item of their
+ * own (Lessons, Assessments, Evaluation, Assistant, etc.), which have no
+ * more specific sibling to "win" the longest-match comparison and so would
+ * still fall through to "/studio" matching by prefix alone.
+ *
+ * The actual rule: an item whose href is a path-segment ancestor of a
+ * sibling item's href (i.e. "/studio" is ancestor to "/studio/classes")
+ * can only ever be active on an *exact* match of its own href -- never by
+ * prefix -- since prefix-matching it would also catch every unrelated
+ * deep route under the same section. Every other item (no sibling is
+ * nested under it) keeps matching by prefix too, so its own detail/sub
+ * routes (e.g. "/studio/classes/:classId") correctly stay highlighted.
+ */
+function findActiveHref(pathname: string, items: NavItem[]): string | null {
+  let best: string | null = null;
+  for (const { href } of items) {
+    const isAncestorOfSibling = items.some((other) => other.href !== href && other.href.startsWith(`${href}/`));
+    const matches = isAncestorOfSibling ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+    if (matches && (best === null || href.length > best.length)) {
+      best = href;
+    }
+  }
+  return best;
 }
 
 /**
@@ -25,10 +50,11 @@ function isActive(pathname: string, href: string): boolean {
  */
 export function Sidebar({ items }: { items: NavItem[] }) {
   const pathname = usePathname();
+  const activeHref = findActiveHref(pathname, items);
   return (
     <nav className={styles.sidebar} aria-label="Studio navigation">
       {items.map(({ label, href, icon: Icon }) => {
-        const active = isActive(pathname, href);
+        const active = href === activeHref;
         return (
           <Link
             key={href}
@@ -48,10 +74,11 @@ export function Sidebar({ items }: { items: NavItem[] }) {
 /** The below-`md` replacement for Sidebar — same nav items, bottom-fixed. */
 export function BottomTabBar({ items }: { items: NavItem[] }) {
   const pathname = usePathname();
+  const activeHref = findActiveHref(pathname, items);
   return (
     <nav className={styles.bottomBar} aria-label="Studio navigation">
       {items.map(({ label, href, icon: Icon }) => {
-        const active = isActive(pathname, href);
+        const active = href === activeHref;
         return (
           <Link
             key={href}

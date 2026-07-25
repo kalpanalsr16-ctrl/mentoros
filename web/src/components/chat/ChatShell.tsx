@@ -184,18 +184,7 @@ export function ChatShell({
           onRetry={sending ? undefined : handleRetry}
         />
         {streamingState && streamingState !== "Completed" && <StreamingIndicator state={streamingState} />}
-        {error && (
-          <p
-            style={{
-              color: "#b3261e",
-              fontSize: "0.875rem",
-              padding: "0 1rem",
-              margin: "0 0 0.5rem",
-            }}
-          >
-            {error}
-          </p>
-        )}
+        {error && <p className={styles.errorBanner}>{error}</p>}
         <MessageInput onSend={handleSend} onCancel={handleCancel} disabled={sending} />
       </div>
       {panelOpen && (

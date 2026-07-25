@@ -78,7 +78,10 @@ export function SettingsForm({ currentEmail }: { currentEmail: string }) {
           type="email"
           required
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            if (emailStatus === "saved" || emailStatus === "error") setEmailStatus("idle");
+          }}
           className={styles.input}
         />
         {emailStatus === "error" && <p className={styles.errorBanner}>{emailError}</p>}
@@ -97,7 +100,10 @@ export function SettingsForm({ currentEmail }: { currentEmail: string }) {
           placeholder="New password"
           required
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e) => {
+            setPassword(e.target.value);
+            if (passwordStatus === "saved" || passwordStatus === "error") setPasswordStatus("idle");
+          }}
           className={styles.input}
         />
         <input
@@ -105,7 +111,10 @@ export function SettingsForm({ currentEmail }: { currentEmail: string }) {
           placeholder="Confirm new password"
           required
           value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
+          onChange={(e) => {
+            setConfirmPassword(e.target.value);
+            if (passwordStatus === "saved" || passwordStatus === "error") setPasswordStatus("idle");
+          }}
           className={styles.input}
         />
         {passwordStatus === "error" && <p className={styles.errorBanner}>{passwordError}</p>}

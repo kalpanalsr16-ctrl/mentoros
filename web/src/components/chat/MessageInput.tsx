@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { Button } from "@/design-system/primitives/Button";
 import { CancelIcon } from "@/design-system/icons";
+import styles from "./MessageInput.module.css";
 
 export function MessageInput({
   onSend,
@@ -24,69 +26,24 @@ export function MessageInput({
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      style={{
-        display: "flex",
-        gap: "0.5rem",
-        padding: "1rem",
-        borderTop: "1px solid #ddd",
-      }}
-    >
+    <form onSubmit={handleSubmit} className={styles.form}>
       <input
         type="text"
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder="Ask a question..."
         disabled={disabled}
-        style={{
-          flex: 1,
-          minWidth: 0,
-          padding: "0.625rem 0.875rem",
-          borderRadius: 8,
-          border: "1px solid #999",
-          fontSize: "1rem",
-        }}
+        className={styles.input}
       />
       {disabled && onCancel ? (
-        <button
-          type="button"
-          onClick={onCancel}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.375rem",
-            padding: "0.625rem 1.25rem",
-            borderRadius: 8,
-            border: "1px solid #999",
-            background: "#fff",
-            color: "#171717",
-            fontSize: "1rem",
-            cursor: "pointer",
-            whiteSpace: "nowrap",
-          }}
-        >
+        <Button type="button" variant="secondary" onClick={onCancel} className={styles.button}>
           <CancelIcon size={14} aria-hidden="true" />
           Cancel
-        </button>
+        </Button>
       ) : (
-        <button
-          type="submit"
-          disabled={disabled}
-          style={{
-            padding: "0.625rem 1.25rem",
-            borderRadius: 8,
-            border: "none",
-            background: "#171717",
-            color: "#fff",
-            fontSize: "1rem",
-            cursor: disabled ? "default" : "pointer",
-            opacity: disabled ? 0.6 : 1,
-            whiteSpace: "nowrap",
-          }}
-        >
-          {disabled ? "Sending..." : "Send"}
-        </button>
+        <Button type="submit" disabled={disabled} loading={disabled} className={styles.button}>
+          Send
+        </Button>
       )}
     </form>
   );

@@ -21,6 +21,14 @@
   flex-shrink: 0;
 }
 
+.errorBanner {
+  margin: 0 0 var(--space-2);
+  padding: 0 var(--space-4);
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-sm-size);
+  color: var(--color-danger-600);
+}
+
 /* Mobile: the panel is a full-screen overlay above the chat column,
    rather than squeezing it into a sliver -- there's no room for a
    340px sidebar below the `md` breakpoint. */

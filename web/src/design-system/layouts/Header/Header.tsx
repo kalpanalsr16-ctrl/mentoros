@@ -23,6 +23,13 @@ export function Wordmark({ href = "/" }: { href?: string }) {
 
 export type HeaderProps = {
   userEmail?: string;
+  /**
+   * Where the wordmark links to. Defaults to "/" (the public landing
+   * page) only for callers that don't know better — every authenticated
+   * shell should pass its own role-aware home so the logo never sends a
+   * signed-in user to the "Coming soon" marketing stub.
+   */
+  homeHref?: string;
 };
 
 /**
@@ -33,13 +40,13 @@ export type HeaderProps = {
  * (docs/design-system/02-Technical-Design-Foundations.md §15) rather
  * than needing a drawer toggle, so Header stays identical across shells.
  */
-export function Header({ userEmail }: HeaderProps) {
+export function Header({ userEmail, homeHref }: HeaderProps) {
   const { signOut, isSigningOut } = useSignOut();
 
   return (
     <header className={styles.header}>
       <div className={styles.left}>
-        <Wordmark />
+        <Wordmark href={homeHref} />
       </div>
       <div className={styles.right}>
         {/* Epic E6: standalone entry point, per 06_Dashboard_Architecture.md's

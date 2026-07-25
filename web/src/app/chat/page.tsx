@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { SignOutButton } from "@/components/SignOutButton";
 import { ChatShell } from "@/components/chat/ChatShell";
 import type { ChatMessage } from "@/components/chat/MessageList";
+import styles from "./page.module.css";
 
 export default async function ChatPage({
   searchParams,
@@ -85,32 +86,15 @@ export default async function ChatPage({
   }
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        height: "100vh",
-      }}
-    >
-      <header
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0.75rem 1rem",
-          borderBottom: "1px solid #ddd",
-          flexShrink: 0,
-        }}
-      >
-        <span style={{ fontWeight: 600 }}>MentorOS</span>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-          {email && (
-            <span style={{ fontSize: "0.875rem", opacity: 0.7 }}>{email}</span>
-          )}
+    <div className={styles.page}>
+      <header className={styles.header}>
+        <p className={styles.wordmark}>MentorOS</p>
+        <div className={styles.headerRight}>
+          {email && <span className={styles.email}>{email}</span>}
           <SignOutButton />
         </div>
       </header>
-      <div style={{ flex: 1, minHeight: 0 }}>
+      <div className={styles.body}>
         <ChatShell
           initialConversationId={conversationId}
           initialMessages={initialMessages}

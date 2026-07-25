@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/design-system/primitives/Button";
+import styles from "./page.module.css";
 
 export default function SignInPage() {
   const router = useRouter();
@@ -34,76 +36,41 @@ export default function SignInPage() {
   }
 
   return (
-    <main style={styles.main}>
-      <div style={styles.card}>
-        <h1 style={styles.heading}>Sign in</h1>
+    <main className={styles.main}>
+      <div className={styles.card}>
+        <h1 className={styles.heading}>Sign in</h1>
 
-        <form onSubmit={handleSubmit} style={styles.form}>
-          <label style={styles.label}>
+        <form onSubmit={handleSubmit} className={styles.form}>
+          <label className={styles.label}>
             Email
             <input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              style={styles.input}
+              className={styles.input}
             />
           </label>
-          <label style={styles.label}>
+          <label className={styles.label}>
             Password
             <input
               type="password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              style={styles.input}
+              className={styles.input}
             />
           </label>
-          {error && <p style={styles.error}>{error}</p>}
-          <button
-            type="submit"
-            disabled={status === "submitting"}
-            style={styles.button}
-          >
-            {status === "submitting" ? "Signing in..." : "Sign in"}
-          </button>
+          {error && <p className={styles.errorBanner}>{error}</p>}
+          <Button type="submit" loading={status === "submitting"}>
+            Sign in
+          </Button>
         </form>
 
-        <p style={styles.footer}>
+        <p className={styles.footer}>
           Don&apos;t have an account? <Link href="/sign-up">Sign up</Link>
         </p>
       </div>
     </main>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  main: {
-    minHeight: "100vh",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "2rem",
-  },
-  card: { width: "100%", maxWidth: 360 },
-  heading: { fontSize: "1.5rem", fontWeight: 600, marginBottom: "1.5rem" },
-  form: { display: "flex", flexDirection: "column", gap: "1rem" },
-  label: { display: "flex", flexDirection: "column", gap: "0.375rem", fontSize: "0.9rem" },
-  input: {
-    padding: "0.5rem 0.75rem",
-    borderRadius: 6,
-    border: "1px solid #999",
-    fontSize: "1rem",
-  },
-  button: {
-    padding: "0.625rem",
-    borderRadius: 6,
-    border: "none",
-    background: "#171717",
-    color: "#fff",
-    fontSize: "1rem",
-    cursor: "pointer",
-  },
-  error: { color: "#b3261e", fontSize: "0.875rem", margin: 0 },
-  footer: { marginTop: "1.5rem", fontSize: "0.875rem", opacity: 0.8 },
-};

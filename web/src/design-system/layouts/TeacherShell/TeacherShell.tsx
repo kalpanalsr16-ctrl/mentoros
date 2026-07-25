@@ -32,7 +32,7 @@ export type TeacherShellProps = {
 export function TeacherShell({ userEmail, children }: TeacherShellProps) {
   return (
     <div className={styles.shell}>
-      <Header userEmail={userEmail} />
+      <Header userEmail={userEmail} homeHref="/studio" />
       <div className={styles.body}>
         <Sidebar items={TEACHER_NAV_ITEMS} />
         <main className={styles.content}>{children}</main>

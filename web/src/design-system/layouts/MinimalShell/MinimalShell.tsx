@@ -5,6 +5,8 @@ import styles from "./MinimalShell.module.css";
 
 export type MinimalShellProps = {
   userEmail?: string;
+  /** Role-aware home for the wordmark — see Header's own doc comment. */
+  homeHref?: string;
   children: ReactNode;
 };
 
@@ -18,10 +20,10 @@ export type MinimalShellProps = {
  * sprint's zero-duplication requirement. Deliberately not used by
  * /chat, which keeps its own existing header untouched this sprint.
  */
-export function MinimalShell({ userEmail, children }: MinimalShellProps) {
+export function MinimalShell({ userEmail, homeHref, children }: MinimalShellProps) {
   return (
     <div className={styles.shell}>
-      <Header userEmail={userEmail} />
+      <Header userEmail={userEmail} homeHref={homeHref} />
       <main className={styles.content}>
         <PageContainer>{children}</PageContainer>
       </main>

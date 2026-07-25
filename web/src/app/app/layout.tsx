@@ -33,5 +33,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const email = data.claims.email as string | undefined;
 
-  return <MinimalShell userEmail={email}>{children}</MinimalShell>;
+  return (
+    <MinimalShell userEmail={email} homeHref="/app">
+      {children}
+    </MinimalShell>
+  );
 }
