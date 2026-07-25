@@ -242,7 +242,9 @@ If the message clearly asks for two things (e.g. "explain fractions and then qui
 
 Extract a topic and subtopic in plain language if the message names one (e.g. topic "Fractions", subtopic "Equivalent Fractions"); leave them unset if no specific topic is named.
 
-Set confidence between 0 and 1 reflecting how certain you are of the primary category. If the request is ambiguous (e.g. "I don't get this" with no clear referent), give it low confidence and propose a specific clarification question that would resolve the ambiguity (e.g. "Are you referring to equivalent fractions or adding fractions?"). Do not guess a category just to produce one.`;
+Set confidence between 0 and 1 reflecting how certain you are of the primary category. If the request is ambiguous (e.g. "I don't get this" with no clear referent), give it low confidence and propose a specific clarification question that would resolve the ambiguity (e.g. "Are you referring to equivalent fractions or adding fractions?"). Do not guess a category just to produce one.
+
+Separately from that category confidence, judge whether the request is already fully specified -- does it contain everything needed to act on it (e.g. "solve 45+89" names the exact operation and both numbers; "explain equivalent fractions" names an exact topic) even if you're not certain which single category above best fits? Set requestIsFullySpecified to true in that case, false when something genuinely necessary is missing (e.g. "help me with addition" names a broad topic but no specific operation; "I don't get this" has no clear referent), or leave it null if you're unsure. This is independent of category confidence -- a request can be completely well-specified even when you're torn between two category labels for it.`;
 
 const RouterClassificationSchema = z.object({
   primaryIntent: z.enum([
@@ -260,6 +262,13 @@ const RouterClassificationSchema = z.object({
   topic: z.string().nullable(),
   subtopic: z.string().nullable(),
   clarificationQuestion: z.string().nullable(),
+  // Nullable, not required to carry meaning -- backward-tolerant on
+  // purpose (see router-agent.ts's classifyIntent): a model response that
+  // omits this or returns null still parses successfully and just falls
+  // through to the existing confidence-threshold gate, same as before
+  // this field existed. Never a hard dependency for the structured
+  // response as a whole.
+  requestIsFullySpecified: z.boolean().nullable(),
 });
 
 export type RouterClassification = z.infer<typeof RouterClassificationSchema>;

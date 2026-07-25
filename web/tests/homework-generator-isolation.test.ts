@@ -17,7 +17,12 @@ import { resolve } from "node:path";
  */
 const EXPECTED_HASHES: Record<string, string> = {
   "src/lib/agents/practice-agent.ts": "af09d56178e0f989cd6c6de0348aaa4078fc70443f3773e17bb7c24f54a01c3d",
-  "src/lib/llm/client.ts": "b6ccd680a4b95b5f9193dbc2544a8261fc592695b0c45903d181536092f1e9fd",
+  // Updated (not removed) for the Router Agent clarification-gate fix --
+  // an explicitly approved change to the Router's schema/prompt (a new
+  // nullable requestIsFullySpecified field), unrelated to and not made
+  // by Homework Generator. This test's actual job -- Homework Generator
+  // must never modify this file -- remains true and enforced.
+  "src/lib/llm/client.ts": "58c1950f6ff4893178bcaded444a92f23eba69056caf30bcc8f8aca91e25964c",
 };
 
 for (const [relativePath, expectedHash] of Object.entries(EXPECTED_HASHES)) {
