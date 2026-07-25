@@ -33,4 +33,5 @@ export {
   Plus as AddIcon,
   UserMinus as RemoveStudentIcon,
   Printer as PrintIcon,
+  Gauge as EvaluationIcon,
 } from "lucide-react";

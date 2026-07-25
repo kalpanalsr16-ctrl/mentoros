@@ -58,9 +58,6 @@ export default async function StudioDashboardPage() {
       </div>
 
       <div className={styles.moreLinksRow}>
-        <Link href="/studio/evaluation" className={styles.moreLink}>
-          Evaluation Dashboard →
-        </Link>
         <Link href="/studio/assistant" className={styles.moreLink}>
           AI Lesson Assistant →
         </Link>

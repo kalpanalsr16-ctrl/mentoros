@@ -20,7 +20,7 @@ export default function SignInPage() {
     setError(null);
 
     const supabase = createClient();
-    const { error: signInError } = await supabase.auth.signInWithPassword({
+    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -31,7 +31,16 @@ export default function SignInPage() {
       return;
     }
 
-    router.push("/chat");
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", signInData.user.id)
+      .single();
+
+    const destination =
+      profile?.role === "teacher" ? "/studio" : profile?.role === "parent" ? "/parent" : "/chat";
+
+    router.push(destination);
     router.refresh();
   }
 
