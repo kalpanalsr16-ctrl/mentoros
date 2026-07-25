@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { MinimalShell } from "@/design-system/layouts/MinimalShell";
 import { resolveShellForRole } from "@/lib/auth/resolve-shell";
+import { BackToDashboardLink } from "@/components/BackToDashboardLink";
 
 /**
  * Authentication shell for the Student experience
@@ -35,6 +36,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <MinimalShell userEmail={email} homeHref="/app">
+      <BackToDashboardLink />
       {children}
     </MinimalShell>
   );

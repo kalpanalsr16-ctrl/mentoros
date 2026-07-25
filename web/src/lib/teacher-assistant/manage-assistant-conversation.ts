@@ -8,16 +8,24 @@ export type AssistantTurnResult =
   | { status: "forbidden" }
   | { status: "error" };
 
+export type LatestAssistantConversationResult =
+  | { status: "ok"; conversationId: string | null; messages: TeacherAssistantMessage[] }
+  | { status: "error" };
+
 /**
  * Server-side initial load for `/studio/assistant` -- single ongoing
  * conversation per teacher (no conversation-list UI in this pass), so
- * this is simply "the most recent one, if any."
+ * this is simply "the most recent one, if any." Both queries' `error` are
+ * checked explicitly -- previously neither was, so a genuine query
+ * failure (RLS denial, connection issue) silently rendered identically
+ * to "no conversation yet, start typing," an empty-but-healthy-looking
+ * chat rather than any indication something actually went wrong.
  */
 export async function getLatestAssistantConversation(
   supabase: SupabaseServerClient,
   teacherId: string,
-): Promise<{ conversationId: string | null; messages: TeacherAssistantMessage[] }> {
-  const { data: conversation } = await supabase
+): Promise<LatestAssistantConversationResult> {
+  const { data: conversation, error: conversationError } = await supabase
     .from("teacher_conversations")
     .select("id")
     .eq("teacher_id", teacherId)
@@ -25,17 +33,21 @@ export async function getLatestAssistantConversation(
     .limit(1)
     .maybeSingle();
 
+  if (conversationError) return { status: "error" };
   if (!conversation) {
-    return { conversationId: null, messages: [] };
+    return { status: "ok", conversationId: null, messages: [] };
   }
 
-  const { data: messageRows } = await supabase
+  const { data: messageRows, error: messagesError } = await supabase
     .from("teacher_messages")
     .select("role, content")
     .eq("teacher_conversation_id", conversation.id)
     .order("created_at", { ascending: true });
 
+  if (messagesError) return { status: "error" };
+
   return {
+    status: "ok",
     conversationId: conversation.id,
     messages: (messageRows ?? []).map((r) => ({ role: r.role as "user" | "assistant", content: r.content })),
   };

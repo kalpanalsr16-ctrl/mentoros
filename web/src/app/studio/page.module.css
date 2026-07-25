@@ -45,6 +45,19 @@
   color: var(--color-text-primary);
 }
 
+.moreLinksRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.moreLink {
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--color-interactive);
+}
+
 .statGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));

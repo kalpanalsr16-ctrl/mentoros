@@ -18,7 +18,7 @@ type RemoveProps = { classId: string; mode: "remove"; studentId: string };
 export function ManageRosterForm(props: AddProps | RemoveProps) {
   const router = useRouter();
   const [studentId, setStudentId] = useState("");
-  const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
 
   async function handleAdd(event: React.FormEvent) {
@@ -40,32 +40,52 @@ export function ManageRosterForm(props: AddProps | RemoveProps) {
     }
 
     setStudentId("");
-    setStatus("idle");
-    router.refresh();
+    // Brief "Added." confirmation before the roster refreshes -- this
+    // used to reset straight to idle with nothing on screen to show the
+    // student was actually added.
+    setStatus("success");
+    setTimeout(() => {
+      setStatus("idle");
+      router.refresh();
+    }, 900);
   }
 
   async function handleRemove() {
     if (props.mode !== "remove") return;
     setStatus("saving");
+    setError(null);
 
     const res = await fetch(`/api/teacher/classes/${props.classId}/students/${props.studentId}`, {
       method: "DELETE",
     });
 
     if (!res.ok) {
+      const body = await res.json().catch(() => null);
       setStatus("error");
+      setError(body?.error ?? "Couldn't remove that student.");
       return;
     }
 
-    router.refresh();
+    // A brief "Removed." replaces the button before the row disappears
+    // from the roster on refresh -- previously silent (no error path at
+    // all existed here either, so a failed removal looked identical to
+    // nothing happening).
+    setStatus("success");
+    setTimeout(() => router.refresh(), 900);
   }
 
   if (props.mode === "remove") {
+    if (status === "success") {
+      return <span className={styles.successNote}>Removed.</span>;
+    }
     return (
-      <Button type="button" variant="ghost" size="sm" onClick={handleRemove} loading={status === "saving"}>
-        <RemoveStudentIcon size={16} aria-hidden="true" />
-        <span className={styles.srOnly}>Remove from class</span>
-      </Button>
+      <div className={styles.removeWrap}>
+        <Button type="button" variant="ghost" size="sm" onClick={handleRemove} loading={status === "saving"}>
+          <RemoveStudentIcon size={16} aria-hidden="true" />
+          <span className={styles.srOnly}>Remove from class</span>
+        </Button>
+        {status === "error" && <p className={styles.errorBanner}>{error}</p>}
+      </div>
     );
   }
 
@@ -78,11 +98,13 @@ export function ManageRosterForm(props: AddProps | RemoveProps) {
         value={studentId}
         onChange={(e) => setStudentId(e.target.value)}
         className={styles.input}
+        disabled={status === "success"}
       />
-      <Button type="submit" loading={status === "saving"}>
+      <Button type="submit" loading={status === "saving"} disabled={status === "success"}>
         Add
       </Button>
       {status === "error" && <p className={styles.errorBanner}>{error}</p>}
+      {status === "success" && <p className={styles.successNote}>Added.</p>}
     </form>
   );
 }

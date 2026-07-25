@@ -57,6 +57,15 @@ export default async function StudioDashboardPage() {
         </Link>
       </div>
 
+      <div className={styles.moreLinksRow}>
+        <Link href="/studio/evaluation" className={styles.moreLink}>
+          Evaluation Dashboard →
+        </Link>
+        <Link href="/studio/assistant" className={styles.moreLink}>
+          AI Lesson Assistant →
+        </Link>
+      </div>
+
       <div className={styles.statGrid}>
         <StatTile label="Classes" value={classCount} />
         <StatTile label="Students" value={studentCount} />

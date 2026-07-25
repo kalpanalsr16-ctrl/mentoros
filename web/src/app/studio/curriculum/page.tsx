@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { listCurriculumConcepts } from "@/lib/teacher-homework/list-curriculum-concepts";
 import { listCurriculumFilters } from "@/lib/curriculum/list-curriculum-filters";
+import { Button } from "@/design-system/primitives/Button";
 import { CurriculumSearch } from "./CurriculumSearch";
 import styles from "./page.module.css";
 
@@ -69,9 +70,9 @@ export default async function CurriculumExplorerPage({
             ))}
           </select>
         </label>
-        <button type="submit" className={styles.filterButton}>
+        <Button type="submit" size="sm">
           Apply
-        </button>
+        </Button>
         {(subject || grade) && (
           <Link href="/studio/curriculum" className={styles.backLink}>
             Clear filters

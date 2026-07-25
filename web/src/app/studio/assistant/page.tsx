@@ -13,13 +13,22 @@ export default async function AssistantPage() {
   const { data: claimsData } = await supabase.auth.getClaims();
   const teacherId = claimsData!.claims!.sub as string;
 
-  const { conversationId, messages } = await getLatestAssistantConversation(supabase, teacherId);
+  const result = await getLatestAssistantConversation(supabase, teacherId);
+
+  if (result.status === "error") {
+    return (
+      <div className={styles.page}>
+        <h1 className={styles.heading}>Lesson Assistant</h1>
+        <p className={styles.body}>Couldn&apos;t load your conversation right now. Please try again.</p>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.page}>
       <h1 className={styles.heading}>Lesson Assistant</h1>
       <p className={styles.body}>Brainstorm lesson ideas, get concept explanations, or draft assessment questions.</p>
-      <AssistantChat initialConversationId={conversationId} initialMessages={messages} />
+      <AssistantChat initialConversationId={result.conversationId} initialMessages={result.messages} />
     </div>
   );
 }

@@ -18,11 +18,15 @@ import styles from "./page.module.css";
  * platform-wide "engineering/quality surface," but no admin role or
  * cross-student RLS exists in this schema, so this reads only a
  * teacher's own students' evaluation events -- same class-scoped
- * pattern as Progress Analytics (G11). Not linked from Studio nav,
- * same deep-link-only convention as Misconceptions/Analytics/
- * Interventions. The regression-alert card renders an honest empty
- * state -- Phase 5's regression-detection backend doesn't exist yet,
- * per the doc's own acceptance criteria for this task.
+ * pattern as Progress Analytics (G11). Not in the persistent Sidebar,
+ * but reachable from the Studio Dashboard's "More tools" row (Demo
+ * Readiness Sprint, Batch 2) -- previously reachable only by a typed
+ * URL, which this doc comment used to (inaccurately) describe as
+ * "same deep-link-only convention as Misconceptions/Interventions,"
+ * even though those two are both reachable from Class Overview. The
+ * regression-alert card renders an honest empty state -- Phase 5's
+ * regression-detection backend doesn't exist yet, per the doc's own
+ * acceptance criteria for this task.
  */
 export default async function EvaluationDashboardPage({
   searchParams,

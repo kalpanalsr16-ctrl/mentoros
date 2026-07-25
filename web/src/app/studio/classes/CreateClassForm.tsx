@@ -12,7 +12,7 @@ export function CreateClassForm() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [grade, setGrade] = useState("");
-  const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -31,9 +31,15 @@ export function CreateClassForm() {
 
     setName("");
     setGrade("");
-    setStatus("idle");
-    setOpen(false);
-    router.refresh();
+    // Brief "Created." confirmation before the form closes and the new
+    // class appears in the list -- previously closed instantly with
+    // nothing on screen to show the click actually worked.
+    setStatus("success");
+    setTimeout(() => {
+      setStatus("idle");
+      setOpen(false);
+      router.refresh();
+    }, 900);
   }
 
   if (!open) {
@@ -62,10 +68,11 @@ export function CreateClassForm() {
         className={styles.inputSmall}
       />
       {status === "error" && <p className={styles.errorBanner}>Couldn&apos;t create that class. Please try again.</p>}
-      <Button type="submit" loading={status === "saving"}>
+      {status === "success" && <p className={styles.successNote}>Created.</p>}
+      <Button type="submit" loading={status === "saving"} disabled={status === "success"}>
         Save
       </Button>
-      <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+      <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={status === "success"}>
         Cancel
       </Button>
     </form>

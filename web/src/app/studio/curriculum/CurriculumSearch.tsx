@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/design-system/primitives/Badge";
+import { Card } from "@/design-system/primitives/Card";
+import { Button } from "@/design-system/primitives/Button";
 import styles from "./page.module.css";
 
 type SearchResult = { id: string; name: string; source: "postgres" | "learning-commons"; standardCode?: string };
@@ -49,9 +51,9 @@ export function CurriculumSearch() {
           placeholder="Search the curriculum…"
           className={styles.searchInput}
         />
-        <button type="submit" className={styles.searchButton} disabled={loading}>
-          {loading ? "Searching…" : "Search"}
-        </button>
+        <Button type="submit" loading={loading}>
+          Search
+        </Button>
       </form>
 
       {results !== null && (
@@ -61,21 +63,23 @@ export function CurriculumSearch() {
           ) : (
             results.map((r) =>
               r.source === "postgres" ? (
-                <Link key={r.id} href={`/studio/curriculum/${r.id}`} className={styles.resultRow}>
-                  <span>{r.name}</span>
-                  <span className={styles.resultMeta}>
-                    {r.standardCode && <span className={styles.standardCode}>{r.standardCode}</span>}
-                    <Badge variant="neutral">MentorOS</Badge>
-                  </span>
-                </Link>
+                <Card key={r.id} className={styles.resultRow}>
+                  <Link href={`/studio/curriculum/${r.id}`} className={styles.resultLink}>
+                    <span>{r.name}</span>
+                    <span className={styles.resultMeta}>
+                      {r.standardCode && <span className={styles.standardCode}>{r.standardCode}</span>}
+                      <Badge variant="neutral">MentorOS</Badge>
+                    </span>
+                  </Link>
+                </Card>
               ) : (
-                <div key={r.id} className={styles.resultRow}>
+                <Card key={r.id} className={styles.resultRow}>
                   <span>{r.name}</span>
                   <span className={styles.resultMeta}>
                     {r.standardCode && <span className={styles.standardCode}>{r.standardCode}</span>}
                     <Badge variant="neutral">Learning Commons</Badge>
                   </span>
-                </div>
+                </Card>
               ),
             )
           )}
