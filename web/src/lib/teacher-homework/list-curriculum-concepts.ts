@@ -3,6 +3,8 @@ import { groupByChapter, type ChapterGroup } from "@/lib/progress/progress-aggre
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
+export type CurriculumConceptFilters = { gradeId?: string; subjectId?: string };
+
 /**
  * Concept picker data for `/studio/homework`'s concept selector --
  * published concepts only, grouped and sequenced by chapter. Reuses
@@ -10,12 +12,34 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
  * ordering a second time; masteryScore/strength are placeholders (this
  * list has no per-student mastery context, it's just "every concept a
  * teacher could assign"), never read by the page.
+ *
+ * `filters` is optional and additive -- added for Curriculum Explorer's
+ * (G6) grade/subject narrowing. Homework Generator and Lesson Planner's
+ * existing calls are unaffected since they pass no second argument.
  */
-export async function listCurriculumConcepts(supabase: SupabaseServerClient): Promise<ChapterGroup[]> {
-  const { data: concepts, error: conceptsError } = await supabase
-    .from("concepts")
-    .select("id, name, chapter_id")
-    .eq("status", "published");
+export async function listCurriculumConcepts(
+  supabase: SupabaseServerClient,
+  filters: CurriculumConceptFilters = {},
+): Promise<ChapterGroup[]> {
+  let chapterIdFilter: string[] | null = null;
+
+  if (filters.gradeId) {
+    const { data: chapters } = await supabase.from("chapters").select("id").eq("grade_id", filters.gradeId);
+    chapterIdFilter = (chapters ?? []).map((c) => c.id);
+  } else if (filters.subjectId) {
+    const { data: grades } = await supabase.from("grades").select("id").eq("subject_id", filters.subjectId);
+    const gradeIds = (grades ?? []).map((g) => g.id);
+    const { data: chapters } =
+      gradeIds.length > 0 ? await supabase.from("chapters").select("id").in("grade_id", gradeIds) : { data: [] };
+    chapterIdFilter = (chapters ?? []).map((c) => c.id);
+  }
+
+  if (chapterIdFilter !== null && chapterIdFilter.length === 0) return [];
+
+  let conceptsQuery = supabase.from("concepts").select("id, name, chapter_id").eq("status", "published");
+  if (chapterIdFilter !== null) conceptsQuery = conceptsQuery.in("chapter_id", chapterIdFilter);
+
+  const { data: concepts, error: conceptsError } = await conceptsQuery;
 
   if (conceptsError || !concepts || concepts.length === 0) return [];
 

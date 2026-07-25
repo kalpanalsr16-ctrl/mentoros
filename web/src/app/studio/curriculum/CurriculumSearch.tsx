@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Badge } from "@/design-system/primitives/Badge";
 import styles from "./page.module.css";
 
@@ -58,15 +59,25 @@ export function CurriculumSearch() {
           {results.length === 0 ? (
             <p className={styles.body}>No matching concepts.</p>
           ) : (
-            results.map((r) => (
-              <div key={r.id} className={styles.resultRow}>
-                <span>{r.name}</span>
-                <span className={styles.resultMeta}>
-                  {r.standardCode && <span className={styles.standardCode}>{r.standardCode}</span>}
-                  <Badge variant="neutral">{r.source === "postgres" ? "MentorOS" : "Learning Commons"}</Badge>
-                </span>
-              </div>
-            ))
+            results.map((r) =>
+              r.source === "postgres" ? (
+                <Link key={r.id} href={`/studio/curriculum/${r.id}`} className={styles.resultRow}>
+                  <span>{r.name}</span>
+                  <span className={styles.resultMeta}>
+                    {r.standardCode && <span className={styles.standardCode}>{r.standardCode}</span>}
+                    <Badge variant="neutral">MentorOS</Badge>
+                  </span>
+                </Link>
+              ) : (
+                <div key={r.id} className={styles.resultRow}>
+                  <span>{r.name}</span>
+                  <span className={styles.resultMeta}>
+                    {r.standardCode && <span className={styles.standardCode}>{r.standardCode}</span>}
+                    <Badge variant="neutral">Learning Commons</Badge>
+                  </span>
+                </div>
+              ),
+            )
           )}
         </div>
       )}

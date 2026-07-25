@@ -1,0 +1,138 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-8) 0;
+}
+
+.backLink {
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--color-interactive);
+}
+
+.breadcrumb {
+  margin: 0;
+  font-family: var(--font-geist-mono);
+  font-size: var(--text-caption-size);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-tertiary);
+}
+
+.heading {
+  margin: 0;
+  font-family: var(--font-fraunces);
+  font-size: var(--text-display-lg-size);
+  line-height: var(--text-display-lg-leading);
+  color: var(--color-text-primary);
+}
+
+.body {
+  margin: 0;
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-lg-size);
+  color: var(--color-text-secondary);
+}
+
+.sectionLabel {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-geist-mono);
+  font-size: var(--text-caption-size);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-tertiary);
+}
+
+.itemList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.itemCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.itemHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-family: var(--font-geist-sans);
+  font-weight: 600;
+  font-size: var(--text-body-md-size);
+  color: var(--color-text-primary);
+}
+
+.itemText {
+  margin: 0;
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-md-size);
+  color: var(--color-text-primary);
+}
+
+.itemMeta {
+  margin: 0;
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-sm-size);
+  color: var(--color-text-tertiary);
+}
+
+.masteryList {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.masteryItem {
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-sm-size);
+  color: var(--color-text-secondary);
+}
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.conceptChip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  background: var(--color-surface);
+}
+
+.chipMeta {
+  font-family: var(--font-geist-sans);
+  font-weight: 400;
+  font-size: var(--text-caption-size);
+  color: var(--color-text-tertiary);
+}
+
+.provenanceGrid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: var(--space-4);
+  row-gap: var(--space-2);
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-sm-size);
+  color: var(--color-text-primary);
+}
+
+.provenanceLabel {
+  color: var(--color-text-tertiary);
+}
