@@ -9,6 +9,7 @@ import { ClassPicker } from "../ClassPicker";
 import { EvaluationRangeFilter } from "./EvaluationRangeFilter";
 import { SourceAgentFilter } from "./SourceAgentFilter";
 import { EvaluationTrendChart } from "./EvaluationTrendChart";
+import Link from "next/link";
 import styles from "./page.module.css";
 
 /**
@@ -65,7 +66,12 @@ export default async function EvaluationDashboardPage({
 
   return (
     <div className={styles.page}>
-      <h1 className={styles.heading}>Evaluation</h1>
+      <div className={styles.headRow}>
+        <h1 className={styles.heading}>Evaluation</h1>
+        <Link href="/studio/evaluation/runs" className={styles.backLink}>
+          Golden eval runs &rarr;
+        </Link>
+      </div>
 
       <ClassPicker classes={classes.map((c) => ({ id: c.id, name: c.name }))} selectedClassId={classId} basePath="/studio/evaluation" extraParams={{ range, ...(sourceAgent ? { sourceAgent } : {}) }} />
 

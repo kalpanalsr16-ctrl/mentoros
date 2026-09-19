@@ -13,6 +13,24 @@
   color: var(--color-text-primary);
 }
 
+.headRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.backLink {
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-sm-size);
+  color: var(--color-text-secondary);
+  text-decoration: none;
+}
+.backLink:hover {
+  color: var(--color-text-primary);
+}
+
 .body {
   margin: 0;
   font-family: var(--font-geist-sans);

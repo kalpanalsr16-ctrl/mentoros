@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --import ./scripts/alias-loader.mjs --test tests/**/*.test.ts"
+    "test": "node --experimental-strip-types --import ./scripts/alias-loader.mjs --test tests/**/*.test.ts",
+    "eval:golden": "node --experimental-strip-types --import ./scripts/alias-loader.mjs scripts/run-golden-eval.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",

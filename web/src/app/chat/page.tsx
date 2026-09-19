@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { SignOutButton } from "@/components/SignOutButton";
 import { ChatShell } from "@/components/chat/ChatShell";
@@ -90,6 +91,9 @@ export default async function ChatPage({
       <header className={styles.header}>
         <p className={styles.wordmark}>MentorOS</p>
         <div className={styles.headerRight}>
+          <Link href="/eval" className={styles.evalLink}>
+            View Evaluation Results
+          </Link>
           {email && <span className={styles.email}>{email}</span>}
           <SignOutButton />
         </div>

@@ -49,3 +49,41 @@ export async function checkRateLimit(
 
   return { limited: false };
 }
+
+const DEMO_DAILY_MESSAGE_LIMIT = 30;
+
+/**
+ * A second, separate cap for the public `/demo` account only
+ * (DEMO_STUDENT_ID) -- unlike the per-minute guard above, this bounds
+ * total cost across every visitor who clicks the link on a given day,
+ * since everyone who uses /demo is authenticated as the exact same
+ * Supabase user. No-op for every other student.
+ */
+export async function checkDemoDailyLimit(
+  supabase: SupabaseServerClient,
+  studentId: string,
+): Promise<RateLimitResult> {
+  const demoStudentId = process.env.DEMO_STUDENT_ID;
+  if (!demoStudentId || studentId !== demoStudentId) {
+    return { limited: false };
+  }
+
+  const startOfDayUtc = new Date();
+  startOfDayUtc.setUTCHours(0, 0, 0, 0);
+
+  const { count, error } = await supabase
+    .from("messages")
+    .select("id", { count: "exact", head: true })
+    .eq("role", "user")
+    .gte("created_at", startOfDayUtc.toISOString());
+
+  if (error || count === null) {
+    return { limited: false };
+  }
+
+  if (count >= DEMO_DAILY_MESSAGE_LIMIT) {
+    return { limited: true, count };
+  }
+
+  return { limited: false };
+}

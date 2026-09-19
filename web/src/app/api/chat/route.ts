@@ -22,7 +22,7 @@ import {
   type EvaluationAgentContext,
   type EvaluationSourceAgent,
 } from "@/lib/agents/evaluation-agent";
-import { checkRateLimit } from "@/lib/security/rate-limit";
+import { checkRateLimit, checkDemoDailyLimit } from "@/lib/security/rate-limit";
 import { classifyIntent } from "@/lib/agents/router-agent";
 import { buildPlanningContext, decidePlan, type LearningPlan } from "@/lib/agents/planning-agent";
 import {
@@ -113,6 +113,20 @@ export async function POST(request: Request) {
     });
     return Response.json(
       { error: "You're sending messages too quickly. Please wait a moment and try again.", traceId },
+      { status: 429 },
+    );
+  }
+
+  const demoLimitResult = await checkDemoDailyLimit(supabase, studentId);
+  if (demoLimitResult.limited) {
+    await logEvent(supabase, {
+      traceId,
+      eventName: "rate_limited",
+      studentId,
+      payload: { count: demoLimitResult.count, reason: "demo_daily_limit" },
+    });
+    return Response.json(
+      { error: "The public demo has hit its daily message limit -- please check back tomorrow.", traceId },
       { status: 429 },
     );
   }
@@ -379,7 +393,7 @@ type PipelineResult = {
  * routing the one streamable path (generateTeachingReplyStreaming) through
  * `events.chunk(...)` instead of waiting for a complete response.
  */
-async function runTutoringPipeline(params: {
+export async function runTutoringPipeline(params: {
   supabase: SupabaseServerClient;
   traceId: string;
   studentId: string;
