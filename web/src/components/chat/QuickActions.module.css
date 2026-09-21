@@ -1,0 +1,26 @@
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.chip {
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-full);
+  border: 1.5px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-family: var(--font-geist-sans);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-instant) var(--easing-standard),
+    border-color var(--duration-instant) var(--easing-standard);
+}
+
+.chip:hover {
+  border-color: var(--color-interactive);
+  color: var(--color-interactive);
+}

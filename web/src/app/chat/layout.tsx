@@ -4,15 +4,14 @@ import { LearnerShell } from "@/design-system/layouts/LearnerShell";
 import { resolveShellForRole } from "@/lib/auth/resolve-shell";
 
 /**
- * Authentication shell for the Student experience
- * (docs/ui-architecture/01_Application_Map.md's `/app/*` namespace).
- * The proxy (web/src/proxy.ts) already redirects signed-out requests
- * away from this route group; this is the same defensive second check
- * /chat's own page already makes, plus the role check the proxy
- * deliberately doesn't do (see this sprint's summary for why that split
- * is drawn at the layout level, not the proxy).
+ * Same auth+role gate as web/src/app/app/layout.tsx (duplicated per
+ * top-level route, matching this codebase's existing convention --
+ * studio/layout.tsx and parent/layout.tsx each do the same rather than
+ * sharing one route-group layout). page.tsx does its own separate
+ * getClaims() call for its own data needs, same redundant-but-consistent
+ * pattern already used throughout /app/*.
  */
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function ChatLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
 
@@ -33,5 +32,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const email = data.claims.email as string | undefined;
 
-  return <LearnerShell userEmail={email}>{children}</LearnerShell>;
+  return (
+    <LearnerShell userEmail={email} fullBleed>
+      {children}
+    </LearnerShell>
+  );
 }

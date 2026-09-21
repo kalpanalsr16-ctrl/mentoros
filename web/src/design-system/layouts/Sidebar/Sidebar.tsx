@@ -41,32 +41,52 @@ function findActiveHref(pathname: string, items: NavItem[]): string | null {
 }
 
 /**
- * Teacher Studio's persistent nav (docs/design-system/04-UX-Design-Experiences.md
- * §9.2) — visible at `md`+; BottomTabBar below takes over under `md`.
- * Sprint 1 scope: pure navigation chrome, four top-level items matching
- * the approved Design System wireframe exactly. It links to routes whose
- * actual module content (Lesson Planner, Assessment Builder, etc.) is
- * explicitly out of scope for this sprint — see the placeholder pages.
+ * Persistent nav shared by every shell that has one (Teacher Studio,
+ * Learner) — visible at `md`+; BottomTabBar below takes over under `md`.
+ * `secondaryItems` renders as its own group pushed to the bottom of the
+ * same `<nav>` (so the border-right stays one continuous line, not two
+ * stacked elements) — used for a destination that belongs in the same
+ * nav but should read as visually separate, e.g. Learner's "Dev Brief".
+ * Omitting it changes nothing for existing callers.
  */
-export function Sidebar({ items }: { items: NavItem[] }) {
+export function Sidebar({
+  items,
+  secondaryItems,
+  ariaLabel = "Studio navigation",
+}: {
+  items: NavItem[];
+  secondaryItems?: NavItem[];
+  ariaLabel?: string;
+}) {
   const pathname = usePathname();
-  const activeHref = findActiveHref(pathname, items);
+  const allItems = secondaryItems ? [...items, ...secondaryItems] : items;
+  const activeHref = findActiveHref(pathname, allItems);
+
+  function renderLink({ label, href, icon: Icon }: NavItem) {
+    const active = href === activeHref;
+    return (
+      <Link
+        key={href}
+        href={href}
+        className={`${styles.link} ${active ? styles.linkActive : ""}`}
+        aria-current={active ? "page" : undefined}
+      >
+        <Icon size={18} aria-hidden />
+        {label}
+      </Link>
+    );
+  }
+
   return (
-    <nav className={styles.sidebar} aria-label="Studio navigation">
-      {items.map(({ label, href, icon: Icon }) => {
-        const active = href === activeHref;
-        return (
-          <Link
-            key={href}
-            href={href}
-            className={`${styles.link} ${active ? styles.linkActive : ""}`}
-            aria-current={active ? "page" : undefined}
-          >
-            <Icon size={18} aria-hidden />
-            {label}
-          </Link>
-        );
-      })}
+    <nav className={styles.sidebar} aria-label={ariaLabel}>
+      {items.map(renderLink)}
+      {secondaryItems && (
+        <>
+          <div className={styles.secondarySpacer} />
+          <div className={styles.secondaryDivider} />
+          {secondaryItems.map(renderLink)}
+        </>
+      )}
     </nav>
   );
 }

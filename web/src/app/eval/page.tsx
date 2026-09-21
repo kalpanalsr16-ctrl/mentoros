@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { EvalRunLiveView, type EvalRunItem } from "../studio/evaluation/runs/EvalRunLiveView";
+import { EvalRunLiveView } from "../studio/evaluation/runs/EvalRunLiveView";
+import { getLatestPublicEvalRun } from "@/lib/evaluation-analytics/get-public-eval-run";
 import styles from "./page.module.css";
 
 /**
@@ -14,26 +15,7 @@ import styles from "./page.module.css";
  */
 export default async function PublicEvalPage() {
   const supabase = await createClient();
-
-  const { data: run } = await supabase
-    .from("eval_runs")
-    .select("id, label, status, started_at, completed_at")
-    .eq("is_public", true)
-    .order("started_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const items = run
-    ? (
-        await supabase
-          .from("eval_run_items")
-          .select(
-            "id, golden_id, question, source_agent, status, latency_ms, overall_score, groundedness_score, accuracy_score, safety_score, hallucination_risk, response_excerpt, error_message",
-          )
-          .eq("run_id", run.id)
-          .order("created_at", { ascending: true })
-      ).data
-    : null;
+  const run = await getLatestPublicEvalRun(supabase);
 
   return (
     <div className={styles.page}>
@@ -54,12 +36,7 @@ export default async function PublicEvalPage() {
       {!run ? (
         <p className={styles.body}>No public evaluation run yet.</p>
       ) : (
-        <EvalRunLiveView
-          runId={run.id}
-          initialLabel={run.label}
-          initialStatus={run.status}
-          initialItems={(items ?? []) as EvalRunItem[]}
-        />
+        <EvalRunLiveView runId={run.id} initialLabel={run.label} initialStatus={run.status} initialItems={run.items} />
       )}
     </div>
   );

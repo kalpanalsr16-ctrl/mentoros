@@ -34,4 +34,8 @@ export {
   UserMinus as RemoveStudentIcon,
   Printer as PrintIcon,
   Gauge as EvaluationIcon,
+  MessageCircle as AskMentorIcon,
+  GraduationCap as AiTutorIcon,
+  Compass as MyLearningIcon,
+  Terminal as DevBriefIcon,
 } from "lucide-react";

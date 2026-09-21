@@ -79,3 +79,65 @@
     display: none;
   }
 }
+
+.accountMenu {
+  position: relative;
+}
+
+.accountTrigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-full);
+  color: inherit;
+}
+
+.accountTrigger:hover {
+  background: var(--color-surface-secondary);
+}
+
+/* Below `md`, .email is already hidden (see the shared rule above) --
+   drop the chevron and the trigger's own padding too, so the account
+   menu costs no more header width than the bare Avatar did before this
+   prop existed. Pre-existing tightness in this header at narrow widths
+   (confirmed on Teacher Studio too, not introduced here) is otherwise
+   left alone -- a full responsive pass is separate follow-up work. */
+@media (max-width: 767px) {
+  .accountTrigger {
+    gap: 0;
+    padding: 0;
+  }
+  .accountTrigger svg {
+    display: none;
+  }
+}
+
+.accountPopover {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-2);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  z-index: 20;
+}
+
+.accountPopoverLink {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-geist-sans);
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.accountPopoverLink:hover {
+  background: var(--color-surface-secondary);
+  color: var(--color-text-primary);
+}

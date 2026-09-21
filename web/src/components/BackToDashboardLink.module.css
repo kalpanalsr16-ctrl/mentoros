@@ -1,8 +1,0 @@
-.backLink {
-  display: inline-block;
-  margin-bottom: var(--space-4);
-  font-family: var(--font-geist-sans);
-  font-size: var(--text-body-sm-size);
-  font-weight: 600;
-  color: var(--color-interactive);
-}

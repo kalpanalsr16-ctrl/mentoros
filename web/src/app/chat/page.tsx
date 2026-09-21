@@ -1,10 +1,8 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { SignOutButton } from "@/components/SignOutButton";
-import { ChatShell } from "@/components/chat/ChatShell";
+import { getDashboardData } from "@/lib/dashboard/get-dashboard-data";
+import { AskMentorView } from "@/components/chat/AskMentorView";
 import type { ChatMessage } from "@/components/chat/MessageList";
-import styles from "./page.module.css";
 
 export default async function ChatPage({
   searchParams,
@@ -22,17 +20,16 @@ export default async function ChatPage({
   }
 
   const studentId = data.claims.sub as string;
-  const email = data.claims.email as string | undefined;
 
   // Welcome experience (Sprint 4): a student with no learner_profiles row
   // has never been through onboarding (or explicitly skipped it -- Skip
   // still writes a minimal row, see /onboarding, so this only ever fires
   // once per real first-time visit, not on every reload). Deliberately a
   // top-level route, not web/src/app/app/onboarding as first sketched in
-  // 13_Implementation_Sequence.md's Epic F1 -- /app/layout.tsx wraps
-  // everything under /app in the full MinimalShell (sidebar, nav chrome),
-  // which is exactly the "minimal chrome" onboarding's own spec (doc
-  // 04-UX-Design-Experiences.md §11.1) argues against for this flow.
+  // 13_Implementation_Sequence.md's Epic F1 -- onboarding's own spec (doc
+  // 04-UX-Design-Experiences.md §11.1) argues for minimal chrome, which
+  // the persistent LearnerShell nav (learner UI redesign) intentionally
+  // doesn't give it.
   const { data: existingProfile } = await supabase
     .from("learner_profiles")
     .select("id")
@@ -86,25 +83,27 @@ export default async function ChatPage({
     autoSendMessage = `Can you help me revisit ${conceptName}?`;
   }
 
+  // Welcome state's "Continue learning" + streak (learner UI redesign) --
+  // the exact same real aggregation the old /app Dashboard used
+  // (getDashboardData), not a new query. Most-recently-practiced concept,
+  // not the weakest one -- "continue where you left off" is a recency
+  // read, not a revision nudge (that's the Revision Queue's job).
+  const dashboardData = await getDashboardData(supabase, studentId);
+  const continueLearning = dashboardData?.recentConcepts[0]
+    ? {
+        conceptId: dashboardData.recentConcepts[0].conceptId,
+        conceptName: dashboardData.recentConcepts[0].conceptName,
+        masteryScore: dashboardData.recentConcepts[0].masteryScore,
+      }
+    : null;
+
   return (
-    <div className={styles.page}>
-      <header className={styles.header}>
-        <p className={styles.wordmark}>MentorOS</p>
-        <div className={styles.headerRight}>
-          <Link href="/eval" className={styles.evalLink}>
-            View Evaluation Results
-          </Link>
-          {email && <span className={styles.email}>{email}</span>}
-          <SignOutButton />
-        </div>
-      </header>
-      <div className={styles.body}>
-        <ChatShell
-          initialConversationId={conversationId}
-          initialMessages={initialMessages}
-          autoSendMessage={autoSendMessage}
-        />
-      </div>
-    </div>
+    <AskMentorView
+      initialConversationId={conversationId}
+      initialMessages={initialMessages}
+      autoSendMessage={autoSendMessage}
+      continueLearning={continueLearning}
+      streak={dashboardData?.streak ?? 0}
+    />
   );
 }

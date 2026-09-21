@@ -20,20 +20,30 @@ export type GoldenQuestion = {
 
 export const GOLDEN_EVAL_SET: GoldenQuestion[] = [
   {
+    // Wording matters here: the concept-search fallback
+    // (search_concept_id, 0002_curriculum_foundation.sql) trigram-matches
+    // the Router Agent's extracted topic/subtopic against the concept's
+    // exact `name` column only ("Addition without regrouping") -- natural
+    // phrasing like "carry"/"borrow" doesn't match closely enough and the
+    // turn silently falls back to an ungraded generic reply (confirmed by
+    // tracing a real run's events: conceptResolved: false). Using the
+    // curriculum's own term, "regrouping", is what actually exercises the
+    // Concept Agent + Evaluation Agent path these questions are meant to
+    // test.
     id: "concept-addition-no-regroup",
-    question: "Can you explain how to add two 2-digit numbers when neither column adds up to 10 or more?",
+    question: "Can you explain addition without regrouping? For example, adding two 2-digit numbers where no column adds up to 10 or more.",
   },
   {
     id: "concept-addition-regroup",
-    question: "Why do we carry a ten when adding two 2-digit numbers, like 48 + 37?",
+    question: "Can you explain addition with regrouping? For example, why do we regroup when adding 48 + 37?",
   },
   {
     id: "concept-subtraction-no-regroup",
-    question: "Explain how to subtract a 2-digit number from another when I don't need to borrow.",
+    question: "Can you explain subtraction without regrouping? For example, subtracting a 2-digit number from another when no regrouping is needed.",
   },
   {
     id: "concept-subtraction-regroup",
-    question: "What does it mean to borrow a ten when subtracting, like in 42 - 17?",
+    question: "Can you explain subtraction with regrouping? For example, what happens when we regroup to subtract 42 - 17?",
   },
   {
     id: "practice-addition-regroup",

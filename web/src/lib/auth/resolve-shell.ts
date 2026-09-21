@@ -9,7 +9,11 @@
 export type Role = "student" | "teacher" | "parent";
 
 export const ROLE_SHELL_PATH: Record<Role, string> = {
-  student: "/app",
+  // Ask Mentor (learner UI redesign) is the student's true default
+  // screen now, not the retired /app Dashboard -- /app still exists and
+  // redirects to /chat for old links, but every fresh redirect target
+  // should go straight there.
+  student: "/chat",
   teacher: "/studio",
   parent: "/parent",
 };

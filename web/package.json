@@ -9,7 +9,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --import ./scripts/alias-loader.mjs --test tests/**/*.test.ts",
-    "eval:golden": "node --experimental-strip-types --import ./scripts/alias-loader.mjs scripts/run-golden-eval.ts"
+    "eval:golden": "node --env-file=.env.local --experimental-strip-types --import ./scripts/alias-loader.mjs scripts/run-golden-eval.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
@@ -32,6 +32,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
+    "playwright": "^1.63.0",
     "typescript": "^5"
   }
 }

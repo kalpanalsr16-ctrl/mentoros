@@ -1,0 +1,45 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-4);
+  /* Room for the fixed BottomTabBar below `md`. */
+  padding-bottom: calc(var(--space-4) + 64px);
+}
+
+@media (min-width: 768px) {
+  .content {
+    padding: var(--space-8);
+  }
+}
+
+/* Ask Mentor (and anything else managing its own internal scroll, e.g.
+   the message list + pinned input) opts out of the default padded,
+   independently-scrolling content region -- it needs the full box to
+   lay out its own header-less column instead. */
+.contentFullBleed {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding-bottom: 64px;
+}
+
+@media (min-width: 768px) {
+  .contentFullBleed {
+    padding-bottom: 0;
+  }
+}
