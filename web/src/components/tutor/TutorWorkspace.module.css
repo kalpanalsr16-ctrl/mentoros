@@ -1,0 +1,80 @@
+.workspace {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-6);
+}
+
+.headRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.eyebrow {
+  margin: 0;
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+.conceptName {
+  margin: var(--space-1) 0 0;
+  font-family: var(--font-fraunces);
+  font-size: var(--text-display-sm-size, 1.5rem);
+  color: var(--color-text-primary);
+}
+
+.lesson {
+  min-height: 120px;
+}
+
+.error {
+  margin: 0;
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-md-size);
+  color: var(--color-danger-600);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.secondaryAction {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-4);
+  min-height: 36px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  font-family: var(--font-geist-sans);
+  font-weight: 500;
+  font-size: 0.9375rem;
+  color: var(--color-text-secondary);
+}
+
+.secondaryAction:hover {
+  border-color: var(--color-interactive);
+  color: var(--color-interactive);
+}
+
+/* Full-screen overlay at every width -- simpler than docking beside the
+   workspace card, and this panel is opened far less often than ChatShell's
+   (only via "How I taught this"), so the extra chrome isn't worth it. */
+.panelWrap {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  justify-content: flex-end;
+}
+

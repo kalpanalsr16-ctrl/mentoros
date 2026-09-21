@@ -1,8 +1,15 @@
 .page {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
-  padding: var(--space-8) 0;
+  gap: var(--space-6);
+  max-width: 640px;
+}
+
+.headRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
 }
 
 .heading {
@@ -13,6 +20,15 @@
   color: var(--color-text-primary);
 }
 
+.backLink {
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-sm-size);
+  color: var(--color-text-secondary);
+}
+.backLink:hover {
+  color: var(--color-text-primary);
+}
+
 .body {
   margin: 0;
   font-family: var(--font-geist-sans);
@@ -20,25 +36,10 @@
   color: var(--color-text-secondary);
 }
 
-.retryLink {
-  font-family: var(--font-geist-sans);
-  font-weight: 600;
-  color: var(--color-interactive);
-}
-
-.section {
+.list {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-}
-
-.sectionLabel {
-  margin: 0;
-  font-family: var(--font-geist-mono);
-  font-size: var(--text-caption-size);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--color-text-tertiary);
 }
 
 .card {
@@ -48,15 +49,21 @@
   gap: var(--space-3);
 }
 
+.cardBody {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
 .conceptName {
   margin: 0;
   font-family: var(--font-geist-sans);
   font-weight: 600;
-  font-size: var(--text-body-md-size);
+  font-size: var(--text-body-lg-size);
   color: var(--color-text-primary);
 }
 
-.dueAt {
+.meta {
   margin: 0;
   font-family: var(--font-geist-sans);
   font-size: var(--text-body-sm-size);

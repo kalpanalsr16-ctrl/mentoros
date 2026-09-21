@@ -1,0 +1,135 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  max-width: 780px;
+}
+
+.heading {
+  margin: 0;
+  font-family: var(--font-fraunces);
+  font-size: var(--text-display-lg-size);
+  line-height: var(--text-display-lg-leading);
+  color: var(--color-text-primary);
+}
+
+.body {
+  margin: 0;
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-md-size);
+  color: var(--color-text-secondary);
+}
+
+.chapters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.chapterCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.chapterHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.chapterTitle {
+  margin: 0;
+  font-family: var(--font-geist-sans);
+  font-weight: 600;
+  font-size: var(--text-body-lg-size);
+  color: var(--color-text-primary);
+}
+
+.chapterPercent {
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-sm-size);
+  color: var(--color-text-tertiary);
+}
+
+.conceptList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.conceptRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+}
+
+.conceptRow:hover {
+  background: var(--color-surface-secondary);
+}
+
+.conceptName {
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-md-size);
+  color: var(--color-text-primary);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.sectionHeadRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.sectionHeading {
+  margin: 0;
+  font-family: var(--font-geist-sans);
+  font-weight: 600;
+  font-size: var(--text-body-lg-size);
+  color: var(--color-text-primary);
+}
+
+.sectionLink {
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--color-interactive);
+}
+
+.confusionList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.confusionCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.confusionText {
+  margin: 0;
+  font-family: var(--font-geist-sans);
+  font-style: italic;
+  color: var(--color-text-primary);
+}
+
+.confusionMeta {
+  margin: 0;
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-sm-size);
+  color: var(--color-text-tertiary);
+}

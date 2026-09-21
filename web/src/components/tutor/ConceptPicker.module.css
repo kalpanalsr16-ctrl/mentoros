@@ -1,0 +1,54 @@
+.chapters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.chapterTitle {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-geist-sans);
+  font-weight: 600;
+  font-size: var(--text-body-md-size);
+  color: var(--color-text-primary);
+}
+
+.conceptList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.conceptRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  background: var(--color-surface);
+  text-align: left;
+}
+
+.conceptRow:hover {
+  background: var(--color-surface-secondary);
+}
+
+.active {
+  border-color: var(--color-interactive);
+  background: var(--color-brand-indigo-100);
+}
+
+.conceptName {
+  font-family: var(--font-geist-sans);
+  font-weight: 500;
+  font-size: var(--text-body-md-size);
+  color: var(--color-text-primary);
+}
+
+.degradedList {
+  margin: 0;
+  padding-left: var(--space-5);
+  font-family: var(--font-geist-sans);
+  color: var(--color-text-secondary);
+}
