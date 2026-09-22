@@ -58,9 +58,9 @@ function EvalSummaryGrid({ items }: { items: EvalRunItem[] }) {
   return (
     <div className={styles.statGrid}>
       <StatTile label="Overall score" value={summary.avgOverallScore ?? "—"} />
-      <StatTile label="Passed" value={summary.passed} />
-      <StatTile label="Flagged" value={summary.failed} />
-      <StatTile label="Errors" value={summary.errored} />
+      <StatTile label="Passed" value={summary.passed} tone={summary.passed > 0 ? "success" : "neutral"} />
+      <StatTile label="Flagged" value={summary.failed} tone={summary.failed > 0 ? "warning" : "neutral"} />
+      <StatTile label="Errors" value={summary.errored} tone={summary.errored > 0 ? "danger" : "neutral"} />
       <StatTile label="Groundedness" value={summary.avgGroundedness ?? "—"} />
       <StatTile label="Accuracy" value={summary.avgAccuracy ?? "—"} />
       <StatTile label="Safety" value={summary.avgSafety ?? "—"} />

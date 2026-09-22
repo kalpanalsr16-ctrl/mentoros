@@ -33,7 +33,7 @@ export type MessageBubbleProps = {
  */
 export function MessageBubble({ content, variant, onViewReasoning, onRetry, streaming }: MessageBubbleProps) {
   return (
-    <div className={`${styles.row} ${styles[variant]}`}>
+    <div className={`${styles.row} ${styles[`${variant}Row`]}`}>
       <div className={styles.column}>
         <div className={`${styles.bubble} ${styles[variant]}`}>
           {variant === "safety" && <span className={styles.safetyLabel}>MentorOS</span>}

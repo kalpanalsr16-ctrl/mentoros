@@ -3,11 +3,16 @@
   width: 100%;
 }
 
-.row.user {
+/* Named distinctly from .user/.assistant/.safety below (not compound
+   .row.user selectors) -- the row and the bubble used to share the
+   exact same modifier class, so the bare .user/.assistant background
+   rule (meant only for the bubble) also matched the full-width row
+   and painted the whole row edge-to-edge instead of just the bubble. */
+.userRow {
   justify-content: flex-end;
 }
-.row.assistant,
-.row.safety {
+.assistantRow,
+.safetyRow {
   justify-content: flex-start;
 }
 
@@ -18,7 +23,7 @@
   max-width: 80%;
 }
 
-.row.user .column {
+.userRow .column {
   align-items: flex-end;
 }
 

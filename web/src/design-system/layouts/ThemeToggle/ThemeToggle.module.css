@@ -30,3 +30,21 @@
   background: var(--color-surface);
   color: var(--color-interactive);
 }
+
+/* Header's right side is tight below `md` (wordmark + Explorer + this +
+   avatar + Sign out were overflowing/overlapping at ~390px). Dropping
+   "system" (the middle option) and shrinking the two remaining buttons
+   keeps light/dark reachable without the header breaking. */
+@media (max-width: 767px) {
+  .toggle {
+    padding: 2px;
+    gap: 2px;
+  }
+  .option {
+    width: 28px;
+    height: 28px;
+  }
+  .option:nth-child(2) {
+    display: none;
+  }
+}

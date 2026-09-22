@@ -21,6 +21,22 @@
   color: var(--color-text-primary);
 }
 
+.value.neutral {
+  color: var(--color-text-primary);
+}
+
+.value.success {
+  color: var(--color-success-600);
+}
+
+.value.warning {
+  color: var(--color-warning-600);
+}
+
+.value.danger {
+  color: var(--color-danger-600);
+}
+
 .trend {
   margin: 0;
   font-family: var(--font-geist-sans);

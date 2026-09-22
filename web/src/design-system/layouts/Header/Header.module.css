@@ -80,6 +80,15 @@
   }
 }
 
+/* Icon-only below `md`, matching .email/.explorerLink's own collapse --
+   "Sign out" as a text label is the last thing crowding this header at
+   narrow widths. */
+@media (max-width: 767px) {
+  .signOutLabel {
+    display: none;
+  }
+}
+
 .accountMenu {
   position: relative;
 }

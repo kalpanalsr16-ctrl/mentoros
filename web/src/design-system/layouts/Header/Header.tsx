@@ -127,7 +127,7 @@ export function Header({ userEmail, homeHref, accountItems }: HeaderProps) {
         )}
         <Button variant="ghost" size="sm" onClick={signOut} loading={isSigningOut} aria-label="Sign out">
           <LogOutIcon size={16} aria-hidden="true" />
-          <span>Sign out</span>
+          <span className={styles.signOutLabel}>Sign out</span>
         </Button>
       </div>
     </header>
