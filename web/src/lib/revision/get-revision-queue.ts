@@ -12,7 +12,7 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 export async function getRevisionQueue(supabase: SupabaseServerClient, studentId: string): Promise<RevisionQueue | null> {
   const { data: masteryRows, error: masteryError } = await supabase
     .from("learner_concept_mastery")
-    .select("concept_id, mastery_score, last_practiced_at")
+    .select("concept_id, mastery_score, last_practiced_at, common_mistakes")
     .eq("student_id", studentId);
 
   if (masteryError) {
@@ -21,7 +21,7 @@ export async function getRevisionQueue(supabase: SupabaseServerClient, studentId
 
   const rows = masteryRows ?? [];
   if (rows.length === 0) {
-    return { dueNow: [], upcoming: [] };
+    return { reviewNow: [], reviewSoon: [], onWatch: [] };
   }
 
   const conceptIds = rows.map((r) => r.concept_id);
@@ -39,6 +39,7 @@ export async function getRevisionQueue(supabase: SupabaseServerClient, studentId
       conceptName: nameById.get(r.concept_id) ?? r.concept_id,
       masteryScore: Number(r.mastery_score),
       lastPracticedAt: r.last_practiced_at,
+      commonMistakes: r.common_mistakes ?? [],
     })),
   );
 }

@@ -36,6 +36,22 @@
   color: var(--color-text-secondary);
 }
 
+.tierSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.tierHeading {
+  margin: 0;
+  font-family: var(--font-geist-sans);
+  font-weight: 600;
+  font-size: var(--text-body-sm-size);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-tertiary);
+}
+
 .list {
   display: flex;
   flex-direction: column;

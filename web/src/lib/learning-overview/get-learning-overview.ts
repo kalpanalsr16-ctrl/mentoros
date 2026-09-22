@@ -14,7 +14,10 @@ export async function getLearningOverview(supabase: SupabaseServerClient, studen
   const [chaptersRes, conceptsRes, masteryRes] = await Promise.all([
     supabase.from("chapters").select("id, title, sequence").eq("status", "published"),
     supabase.from("concepts").select("id, name, chapter_id").eq("status", "published"),
-    supabase.from("learner_concept_mastery").select("concept_id, mastery_score, last_practiced_at").eq("student_id", studentId),
+    supabase
+      .from("learner_concept_mastery")
+      .select("concept_id, mastery_score, last_practiced_at, common_mistakes, attempts")
+      .eq("student_id", studentId),
   ]);
 
   if (chaptersRes.error || conceptsRes.error || masteryRes.error) {
@@ -28,6 +31,8 @@ export async function getLearningOverview(supabase: SupabaseServerClient, studen
       conceptId: m.concept_id,
       masteryScore: Number(m.mastery_score),
       lastPracticedAt: m.last_practiced_at,
+      commonMistakes: m.common_mistakes ?? [],
+      attempts: m.attempts ?? 0,
     })),
   );
 }

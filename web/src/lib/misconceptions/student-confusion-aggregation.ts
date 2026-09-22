@@ -15,6 +15,7 @@
 
 export type ConfusionEventRow = {
   misconceptions: string[];
+  conceptId: string | null;
   conceptName: string | null;
   createdAt: string;
 };
@@ -22,24 +23,30 @@ export type ConfusionEventRow = {
 export type ConfusionItem = {
   text: string;
   frequency: number;
+  conceptIds: string[];
   conceptNames: string[];
   firstSeenAt: string;
   lastSeenAt: string;
 };
 
 export function aggregateStudentConfusion(rows: ConfusionEventRow[], minFrequency = 2): ConfusionItem[] {
-  const byText = new Map<string, { frequency: number; conceptNames: Set<string>; firstSeenAt: string; lastSeenAt: string }>();
+  const byText = new Map<
+    string,
+    { frequency: number; conceptIds: Set<string>; conceptNames: Set<string>; firstSeenAt: string; lastSeenAt: string }
+  >();
 
   for (const row of rows) {
     for (const text of row.misconceptions) {
       if (!text) continue;
       const entry = byText.get(text) ?? {
         frequency: 0,
+        conceptIds: new Set<string>(),
         conceptNames: new Set<string>(),
         firstSeenAt: row.createdAt,
         lastSeenAt: row.createdAt,
       };
       entry.frequency += 1;
+      if (row.conceptId) entry.conceptIds.add(row.conceptId);
       if (row.conceptName) entry.conceptNames.add(row.conceptName);
       if (row.createdAt < entry.firstSeenAt) entry.firstSeenAt = row.createdAt;
       if (row.createdAt > entry.lastSeenAt) entry.lastSeenAt = row.createdAt;
@@ -51,6 +58,7 @@ export function aggregateStudentConfusion(rows: ConfusionEventRow[], minFrequenc
     .map(([text, entry]) => ({
       text,
       frequency: entry.frequency,
+      conceptIds: [...entry.conceptIds],
       conceptNames: [...entry.conceptNames],
       firstSeenAt: entry.firstSeenAt,
       lastSeenAt: entry.lastSeenAt,

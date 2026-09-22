@@ -1,4 +1,6 @@
 import { deriveStrength } from "@/lib/progress/progress-aggregation";
+import { deriveRetention, classifyRetention, type RetentionClassification } from "@/lib/retention/retention-aggregation";
+import { buildConceptReasoning } from "@/lib/learning-journey/concept-journey-aggregation";
 
 /**
  * My Learning's status model (learner UI redesign) -- deliberately not
@@ -20,7 +22,13 @@ export type ConceptStatus = "new" | "learning" | "mastered" | "struggling";
 
 export type ChapterRow = { id: string; title: string; sequence: number };
 export type ConceptRow = { id: string; name: string; chapterId: string | null };
-export type MasteryRow = { conceptId: string; masteryScore: number; lastPracticedAt: string | null };
+export type MasteryRow = {
+  conceptId: string;
+  masteryScore: number;
+  lastPracticedAt: string | null;
+  commonMistakes?: string[];
+  attempts?: number;
+};
 
 export type OverviewConcept = {
   conceptId: string;
@@ -28,7 +36,14 @@ export type OverviewConcept = {
   status: ConceptStatus;
   /** 0-100, 0 for a NEW concept (no row yet) -- matches ProgressRing's existing "no fake ring at 0%" convention only mattering for a real attempt; NEW concepts don't render a ring at all in the UI. */
   masteryScore: number;
+  /** 0-100, a recency-decayed estimate of masteryScore -- see retention-aggregation.ts. `null` for a NEW concept (nothing to decay). */
+  retentionScore: number | null;
+  retentionStatus: RetentionClassification | null;
   lastPracticedAt: string | null;
+  commonMistakes: string[];
+  attempts: number;
+  /** "Why MentorOS thinks this" -- see buildConceptReasoning; built only from real fields. */
+  reasoning: string;
 };
 
 export type OverviewChapter = {
@@ -62,6 +77,7 @@ export function buildLearningOverview(
   chapters: ChapterRow[],
   concepts: ConceptRow[],
   masteryRows: MasteryRow[],
+  now: Date = new Date(),
 ): OverviewChapter[] {
   const masteryByConcept = new Map(masteryRows.map((m) => [m.conceptId, m]));
   const chaptersById = new Map(chapters.map((c) => [c.id, c]));
@@ -70,12 +86,22 @@ export function buildLearningOverview(
   for (const concept of concepts) {
     const key = concept.chapterId ?? "__other__";
     const mastery = masteryByConcept.get(concept.id);
+    const retentionScore = mastery ? deriveRetention(mastery.masteryScore, mastery.lastPracticedAt, now) : null;
+    const masteryScore = mastery ? Math.round(mastery.masteryScore * 100) : 0;
+    const attempts = mastery?.attempts ?? 0;
+    const lastPracticedAt = mastery?.lastPracticedAt ?? null;
+    const commonMistakes = mastery?.commonMistakes ?? [];
     const overviewConcept: OverviewConcept = {
       conceptId: concept.id,
       conceptName: concept.name,
       status: statusFor(mastery?.masteryScore),
-      masteryScore: mastery ? Math.round(mastery.masteryScore * 100) : 0,
-      lastPracticedAt: mastery?.lastPracticedAt ?? null,
+      masteryScore,
+      retentionScore: retentionScore !== null ? Math.round(retentionScore * 100) : null,
+      retentionStatus: retentionScore !== null ? classifyRetention(retentionScore) : null,
+      lastPracticedAt,
+      commonMistakes,
+      attempts,
+      reasoning: buildConceptReasoning(attempts, masteryScore, lastPracticedAt, commonMistakes, now),
     };
     if (!grouped.has(key)) grouped.set(key, []);
     grouped.get(key)!.push(overviewConcept);

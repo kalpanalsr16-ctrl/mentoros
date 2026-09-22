@@ -9,6 +9,16 @@ test("a concept with no mastery row at all is NEW, not fabricated as struggling"
   const overview = buildLearningOverview(chapters, concepts, []);
   assert.equal(overview[0].concepts[0].status, "new");
   assert.equal(overview[0].concepts[0].masteryScore, 0);
+  assert.equal(overview[0].concepts[0].retentionScore, null, "a NEW concept has nothing to decay -- no fabricated retention");
+});
+
+test("an attempted concept gets a real retentionScore/retentionStatus derived from mastery + recency", () => {
+  const now = new Date("2026-02-01T00:00:00Z");
+  const concepts: ConceptRow[] = [{ id: "a", name: "A", chapterId: "ch1" }];
+  const mastery: MasteryRow[] = [{ conceptId: "a", masteryScore: 0.9, lastPracticedAt: now.toISOString() }];
+  const overview = buildLearningOverview(chapters, concepts, mastery, now);
+  assert.equal(overview[0].concepts[0].retentionScore, 90);
+  assert.equal(overview[0].concepts[0].retentionStatus, "strong");
 });
 
 test("status thresholds match deriveStrength's own bands exactly", () => {

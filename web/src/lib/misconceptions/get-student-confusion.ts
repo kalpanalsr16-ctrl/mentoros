@@ -5,6 +5,7 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
 type AssessmentCompletedPayload = {
   misconceptions?: string[];
+  conceptId?: string | null;
   conceptName?: string | null;
 };
 
@@ -30,6 +31,7 @@ export async function getStudentConfusion(supabase: SupabaseServerClient, studen
     const payload = row.payload as AssessmentCompletedPayload;
     return {
       misconceptions: payload.misconceptions ?? [],
+      conceptId: payload.conceptId ?? null,
       conceptName: payload.conceptName ?? null,
       createdAt: row.created_at,
     };

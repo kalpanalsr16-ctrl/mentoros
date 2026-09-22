@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
-  max-width: 780px;
+  max-width: 840px;
 }
 
 .heading {
@@ -13,6 +13,13 @@
   color: var(--color-text-primary);
 }
 
+.subtitle {
+  margin: calc(var(--space-8) * -1 + var(--space-2)) 0 0;
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-lg-size);
+  color: var(--color-text-secondary);
+}
+
 .body {
   margin: 0;
   font-family: var(--font-geist-sans);
@@ -20,68 +27,86 @@
   color: var(--color-text-secondary);
 }
 
-.chapters {
+/* Empty state (new user) */
+.emptyCard {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-}
-
-.chapterCard {
-  display: flex;
-  flex-direction: column;
+  align-items: flex-start;
   gap: var(--space-3);
+  max-width: 480px;
 }
 
-.chapterHead {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.chapterTitle {
+.emptyTitle {
   margin: 0;
-  font-family: var(--font-geist-sans);
-  font-weight: 600;
-  font-size: var(--text-body-lg-size);
+  font-family: var(--font-fraunces);
+  font-size: var(--text-heading-md-size, 1.25rem);
   color: var(--color-text-primary);
 }
 
-.chapterPercent {
-  font-family: var(--font-geist-sans);
-  font-size: var(--text-body-sm-size);
-  color: var(--color-text-tertiary);
-}
-
-.conceptList {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.conceptRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+/* Snapshot */
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
 }
 
-.conceptRow:hover {
-  background: var(--color-surface-secondary);
-}
-
-.conceptName {
-  font-family: var(--font-geist-sans);
-  font-size: var(--text-body-md-size);
-  color: var(--color-text-primary);
-}
-
-.section {
+/* Recommended next -- the page's one clearly primary action, so it gets
+   the same theme-independent brand-tint treatment Badge's "brand"
+   variant already uses (light indigo bg + dark indigo text, unaffected
+   by light/dark mode) rather than a shadow (reserved for Modal/Toast
+   per the design system) or a second competing accent color. */
+.recommendedCard {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  background: var(--color-brand-indigo-100);
+  border-color: transparent;
+}
+
+.recommendedLabel {
+  margin: 0;
+  font-family: var(--font-geist-sans);
+  font-weight: 600;
+  font-size: var(--text-caption-size);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-brand-indigo-700);
+}
+
+.recommendedTitle {
+  margin: 0;
+  font-family: var(--font-fraunces);
+  font-size: var(--text-heading-md-size, 1.25rem);
+  color: var(--color-brand-indigo-900);
+}
+
+.recommendedReason {
+  margin: 0;
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-md-size);
+  color: var(--color-brand-indigo-700);
+}
+
+.recommendedFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-1);
+}
+
+.recommendedEstimate {
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-sm-size);
+  color: var(--color-brand-indigo-700);
+}
+
+/* Sections */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
   padding-top: var(--space-4);
   border-top: 1px solid var(--color-border-subtle);
 }
@@ -108,28 +133,81 @@
   color: var(--color-interactive);
 }
 
-.confusionList {
+/* Knowledge Map */
+.chapters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.chapterCard {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
 }
 
-.confusionCard {
+.chapterHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 0 var(--space-3);
+}
+
+.chapterTitle {
+  margin: 0;
+  font-family: var(--font-geist-sans);
+  font-weight: 600;
+  font-size: var(--text-body-lg-size);
+  color: var(--color-text-primary);
+}
+
+.chapterPercent {
+  font-family: var(--font-geist-sans);
+  font-size: var(--text-body-sm-size);
+  color: var(--color-text-tertiary);
+}
+
+.conceptList {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Patterns */
+.patternList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.patternCard {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
 }
 
-.confusionText {
+.patternLabel {
+  margin: 0;
+  font-family: var(--font-geist-sans);
+  font-weight: 600;
+  font-size: var(--text-caption-size);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-tertiary);
+}
+
+.patternText {
   margin: 0;
   font-family: var(--font-geist-sans);
   font-style: italic;
   color: var(--color-text-primary);
 }
 
-.confusionMeta {
-  margin: 0;
+.patternLink {
+  align-self: flex-start;
+  margin-top: var(--space-1);
   font-family: var(--font-geist-sans);
   font-size: var(--text-body-sm-size);
-  color: var(--color-text-tertiary);
+  font-weight: 600;
+  color: var(--color-interactive);
 }

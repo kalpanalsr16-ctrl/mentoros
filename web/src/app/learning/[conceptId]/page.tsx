@@ -63,8 +63,14 @@ export default async function ConceptDetailPage({ params }: { params: Promise<{ 
       <div className={styles.statGrid}>
         <Card className={styles.statCard}>
           <ProgressRing value={detail.masteryScore} size={48} />
-          <p className={styles.statLabel}>Mastery</p>
+          <p className={styles.statLabel}>Understanding</p>
         </Card>
+        {detail.retentionScore !== null && (
+          <Card className={styles.statCard}>
+            <ProgressRing value={detail.retentionScore} size={48} />
+            <p className={styles.statLabel}>Retention</p>
+          </Card>
+        )}
         <Card className={styles.statCard}>
           <p className={styles.statValue}>{detail.attempts}</p>
           <p className={styles.statLabel}>Attempts</p>
@@ -78,6 +84,11 @@ export default async function ConceptDetailPage({ params }: { params: Promise<{ 
           <p className={styles.statLabel}>Last practiced</p>
         </Card>
       </div>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionHeading}>Why MentorOS thinks this</h2>
+        <p className={styles.body}>{detail.reasoning}</p>
+      </section>
 
       {detail.commonMistakes.length > 0 && (
         <section className={styles.section}>

@@ -26,6 +26,37 @@ export type ConceptJourney = {
   assessmentItems: AssessmentHistoryItem[];
 };
 
+/**
+ * "Why MentorOS thinks this" -- built only from fields that genuinely
+ * exist on learner_concept_mastery (attempts, mastery_score,
+ * last_practiced_at, common_mistakes). Deliberately does not claim a
+ * hint count or per-question correctness -- no such data is logged
+ * anywhere in this codebase (no practice_attempts/question_attempts
+ * table exists, and practice_generated only logs an aggregate
+ * questionCount, never per-question results).
+ */
+export function buildConceptReasoning(
+  attempts: number,
+  masteryScore: number,
+  lastPracticedAt: string | null,
+  commonMistakes: string[],
+  now: Date = new Date(),
+): string {
+  if (attempts === 0) {
+    return "You haven't attempted this concept yet, so there's nothing to base an assessment on.";
+  }
+
+  const attemptPhrase = `${attempts} attempt${attempts === 1 ? "" : "s"} so far`;
+  const daysAgo = lastPracticedAt
+    ? Math.floor((now.getTime() - new Date(lastPracticedAt).getTime()) / (24 * 60 * 60 * 1000))
+    : null;
+  const recencyPhrase =
+    daysAgo === null ? "" : daysAgo === 0 ? ", last practiced today" : `, last practiced ${daysAgo} day${daysAgo === 1 ? "" : "s"} ago`;
+  const mistakePhrase = commonMistakes.length > 0 ? ` Recurring mistake noted: "${commonMistakes[0]}".` : "";
+
+  return `${attemptPhrase}${recencyPhrase}. Current understanding: ${masteryScore}%.${mistakePhrase}`;
+}
+
 export function mapPracticeEvents(rows: PracticeEventRow[]): ConceptPracticeItem[] {
   return rows.map((row) => ({
     id: row.id,
