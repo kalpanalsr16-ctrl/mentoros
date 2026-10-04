@@ -8,18 +8,30 @@ import { StreamingIndicator } from "@/design-system/patterns/StreamingIndicator"
 import { LinkButton } from "@/design-system/primitives/LinkButton";
 import { TransparencyIcon } from "@/design-system/icons";
 import { parseChatStream } from "@/lib/chat/parse-chat-stream";
-import type { StreamingUserState } from "@/lib/chat/types";
+import type { StreamingUserState, TurnMeta } from "@/lib/chat/types";
+import {
+  reportUnspokenVoiceTurn,
+  type PendingVoiceTurn,
+  type useAvatarSession,
+} from "@/components/voice/useAvatarSession";
+import { toSpeechText } from "@/lib/avatar/speech-text";
+import { AvatarPanel } from "@/components/voice/AvatarPanel";
 import styles from "./ChatShell.module.css";
 
 export function ChatShell({
   initialConversationId,
   initialMessages,
   autoSendMessage,
+  autoSendMeta,
+  avatar,
 }: {
   initialConversationId: string | null;
   initialMessages: ChatMessage[];
   /** Sprint 4: "Start Diagnostic" in onboarding lands here with a message already chosen -- sent once on mount through the same unmodified pipeline any typed message goes through. */
   autoSendMessage?: string;
+  /** Set when the auto-sent message came from voice, so its answer is spoken by Dr. Paws. */
+  autoSendMeta?: TurnMeta;
+  avatar: ReturnType<typeof useAvatarSession>;
 }) {
   const [conversationId, setConversationId] = useState(initialConversationId);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
@@ -54,7 +66,11 @@ export function ChatShell({
    * retry (reusing the existing last user message already in `messages`,
    * nothing new to show optimistically).
    */
-  async function sendRequest(requestBody: Record<string, unknown>, localUserContent: string | null) {
+  async function sendRequest(
+    requestBody: Record<string, unknown>,
+    localUserContent: string | null,
+    meta?: TurnMeta,
+  ) {
     setSending(true);
     setError(null);
     setStreamingState("Preparing");
@@ -72,7 +88,9 @@ export function ChatShell({
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify(
+          meta ? { ...requestBody, modality: meta.modality, voiceTraceId: meta.voice.voiceTraceId } : requestBody,
+        ),
         signal: abortController.signal,
       });
 
@@ -114,6 +132,20 @@ export function ChatShell({
               ? [...withoutDrafts, finalAssistantMessage]
               : [...withoutDrafts, event.payload.userMessage, finalAssistantMessage];
           });
+
+          if (meta?.modality === "voice") {
+            const turn: PendingVoiceTurn = { ...meta.voice, replyDoneAt: Date.now() };
+            if (event.payload.replyKind === "text") {
+              const spokenText = toSpeechText(event.payload.assistantMessage.content);
+              void avatar.start().then((ready) => {
+                if (!ready || !avatar.speak(spokenText, turn)) {
+                  void reportUnspokenVoiceTurn(turn, "unavailable");
+                }
+              });
+            } else {
+              void reportUnspokenVoiceTurn(turn, "not_spoken");
+            }
+          }
         } else if (event.type === "error") {
           throw new Error(event.message);
         }
@@ -135,8 +167,8 @@ export function ChatShell({
     }
   }
 
-  async function handleSend(content: string) {
-    await sendRequest({ conversationId, content }, content);
+  async function handleSend(content: string, meta?: TurnMeta) {
+    await sendRequest({ conversationId, content }, content, meta);
   }
 
   async function handleRetry() {
@@ -161,7 +193,7 @@ export function ChatShell({
   useEffect(() => {
     if (autoSendMessage && !autoSentRef.current) {
       autoSentRef.current = true;
-      handleSend(autoSendMessage);
+      handleSend(autoSendMessage, autoSendMeta);
     }
     // Fires once on mount only -- autoSendMessage is a one-time launch
     // parameter (Sprint 4's "Start Diagnostic"), not a value to resend on
@@ -177,6 +209,12 @@ export function ChatShell({
             How I answered
           </LinkButton>
         </div>
+        <AvatarPanel
+          status={avatar.status}
+          speaking={avatar.speaking}
+          videoRef={avatar.videoRef}
+          onEnd={() => void avatar.end()}
+        />
         <MessageList
           messages={messages}
           streamingMessageId={streamingMessageId}
@@ -185,7 +223,12 @@ export function ChatShell({
         />
         {streamingState && streamingState !== "Completed" && <StreamingIndicator state={streamingState} />}
         {error && <p className={styles.errorBanner}>{error}</p>}
-        <MessageInput onSend={handleSend} onCancel={handleCancel} disabled={sending} />
+        <MessageInput
+          onSend={handleSend}
+          onCancel={handleCancel}
+          onVoiceStart={() => void avatar.start()}
+          disabled={sending}
+        />
       </div>
       {panelOpen && (
         <div className={styles.panelWrap}>

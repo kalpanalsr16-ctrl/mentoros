@@ -3,16 +3,21 @@
 import { useState, type FormEvent } from "react";
 import { Button } from "@/design-system/primitives/Button";
 import { CancelIcon } from "@/design-system/icons";
+import { MicButton } from "@/components/voice/MicButton";
+import type { TurnMeta } from "@/lib/chat/types";
 import styles from "./MessageInput.module.css";
 
 export function MessageInput({
   onSend,
   onCancel,
+  onVoiceStart,
   disabled = false,
 }: {
-  onSend: (content: string) => void;
+  onSend: (content: string, meta?: TurnMeta) => void;
   /** Sprint 4: present while a reply is generating -- lets the student stop it instead of only waiting. */
   onCancel?: () => void;
+  /** Voice: fires when push-to-talk recording begins, so the avatar can warm up in parallel. */
+  onVoiceStart?: () => void;
   disabled?: boolean;
 }) {
   const [value, setValue] = useState("");
@@ -34,6 +39,11 @@ export function MessageInput({
         placeholder="Ask a question..."
         disabled={disabled}
         className={styles.input}
+      />
+      <MicButton
+        disabled={disabled}
+        onRecordingStart={onVoiceStart}
+        onTranscript={(transcript, voice) => onSend(transcript, { modality: "voice", voice })}
       />
       {disabled && onCancel ? (
         <Button type="button" variant="secondary" onClick={onCancel} className={styles.button}>

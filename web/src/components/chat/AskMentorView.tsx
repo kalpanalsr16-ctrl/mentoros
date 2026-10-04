@@ -4,6 +4,8 @@ import { useState } from "react";
 import { ChatShell } from "./ChatShell";
 import { AskMentorWelcome, type ContinueLearningConcept } from "./AskMentorWelcome";
 import type { ChatMessage } from "./MessageList";
+import { useAvatarSession } from "@/components/voice/useAvatarSession";
+import type { TurnMeta } from "@/lib/chat/types";
 import styles from "./AskMentorView.module.css";
 
 /**
@@ -27,14 +29,20 @@ export function AskMentorView({
   continueLearning: ContinueLearningConcept | null;
   streak: number;
 }) {
-  const [pendingAutoSend, setPendingAutoSend] = useState<string | null>(null);
+  const [pending, setPending] = useState<{ content: string; meta?: TurnMeta } | null>(null);
+  const avatar = useAvatarSession();
 
-  const hasStarted = initialMessages.length > 0 || Boolean(autoSendMessage) || Boolean(pendingAutoSend);
+  const hasStarted = initialMessages.length > 0 || Boolean(autoSendMessage) || Boolean(pending);
 
   if (!hasStarted) {
     return (
       <div className={styles.welcomeWrap}>
-        <AskMentorWelcome onSubmit={setPendingAutoSend} continueLearning={continueLearning} streak={streak} />
+        <AskMentorWelcome
+          onSubmit={(content, meta) => setPending({ content, meta })}
+          onVoiceStart={() => void avatar.start()}
+          continueLearning={continueLearning}
+          streak={streak}
+        />
       </div>
     );
   }
@@ -43,7 +51,9 @@ export function AskMentorView({
     <ChatShell
       initialConversationId={initialConversationId}
       initialMessages={initialMessages}
-      autoSendMessage={pendingAutoSend ?? autoSendMessage}
+      autoSendMessage={pending?.content ?? autoSendMessage}
+      autoSendMeta={pending?.meta}
+      avatar={avatar}
     />
   );
 }

@@ -70,6 +70,8 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
  */
 type RetryTarget = { supersedeMessageId: string };
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function POST(request: Request) {
   const traceId = generateTraceId();
   const supabase = await createClient();
@@ -135,6 +137,13 @@ export async function POST(request: Request) {
   const isRetry = body?.retry === true;
   const bodyConversationId =
     typeof body?.conversationId === "string" ? body.conversationId : null;
+  // Modality is metadata only: voice and typed questions take the identical
+  // pipeline below. voiceTraceId links this turn to its transcription event.
+  const modality = body?.modality === "voice" ? "voice" : "text";
+  const voiceTraceId =
+    modality === "voice" && typeof body?.voiceTraceId === "string" && UUID_PATTERN.test(body.voiceTraceId)
+      ? body.voiceTraceId
+      : null;
 
   let activeConversationId: string;
   let content: string;
@@ -322,6 +331,8 @@ export async function POST(request: Request) {
           payload: {
             userMessageId: userMessage.id,
             assistantMessageId: assistantMessage.id,
+            modality,
+            ...(voiceTraceId ? { voiceTraceId } : {}),
             ...pipelineResult.llmMetadata,
           },
         });

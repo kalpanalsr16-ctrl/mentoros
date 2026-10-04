@@ -29,6 +29,18 @@ export type MasteryUpdatePayload = {
  */
 export type StreamingUserState = "Preparing" | "Thinking" | "Teaching" | "Completed";
 
+/** Client-clock marks for one push-to-talk question, used for latency reporting. */
+export type VoiceTurnTiming = {
+  voiceTraceId: string | null;
+  /** Epoch ms when the student tapped to finish recording. */
+  questionEndAt: number;
+  /** Epoch ms when the transcript came back from /api/voice/transcribe. */
+  transcriptReadyAt: number;
+};
+
+/** How a student's turn was entered. Metadata only: both paths run the same pipeline. */
+export type TurnMeta = { modality: "voice"; voice: VoiceTurnTiming };
+
 export type MessageRow = { id: string; role: "user" | "assistant"; content: string; trace_id: string | null };
 
 /**

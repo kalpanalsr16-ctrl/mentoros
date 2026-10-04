@@ -9,6 +9,8 @@ import { Button } from "@/design-system/primitives/Button";
 import { LinkButton } from "@/design-system/primitives/LinkButton";
 import { StreakIcon } from "@/design-system/icons";
 import { QuickActions } from "./QuickActions";
+import { MicButton } from "@/components/voice/MicButton";
+import type { TurnMeta } from "@/lib/chat/types";
 import styles from "./AskMentorWelcome.module.css";
 
 export type ContinueLearningConcept = {
@@ -26,10 +28,12 @@ export type ContinueLearningConcept = {
  */
 export function AskMentorWelcome({
   onSubmit,
+  onVoiceStart,
   continueLearning,
   streak,
 }: {
-  onSubmit: (text: string) => void;
+  onSubmit: (text: string, meta?: TurnMeta) => void;
+  onVoiceStart?: () => void;
   continueLearning: ContinueLearningConcept | null;
   streak: number;
 }) {
@@ -63,6 +67,10 @@ export function AskMentorWelcome({
             onChange={(event) => setValue(event.target.value)}
             placeholder="Ask Mentor anything..."
             className={styles.input}
+          />
+          <MicButton
+            onRecordingStart={onVoiceStart}
+            onTranscript={(transcript, voice) => onSubmit(transcript, { modality: "voice", voice })}
           />
           <Button type="submit" disabled={!value.trim()}>
             Send
