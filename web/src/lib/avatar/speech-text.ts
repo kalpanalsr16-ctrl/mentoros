@@ -1,12 +1,9 @@
 /**
  * Speech-only view of a MentorOS answer, sent to Tavus. The stored and
  * displayed answer is never changed here. This module only decides how the
- * text sounds: notation becomes words, markup and emoji are dropped, and a
- * long answer is condensed to a short spoken summary.
+ * text sounds: notation becomes words, and markup and emoji are dropped. The
+ * whole answer is kept, so Dr. Paws explains all of it.
  */
-
-const SPOKEN_WORD_BUDGET = 45;
-const FULL_ANSWER_HINT = "The full explanation is on your screen.";
 
 const FRACTION_NAMES: Record<number, [singular: string, plural: string]> = {
   2: ["half", "halves"],
@@ -65,29 +62,5 @@ export function toSpeechText(answer: string): string {
     .replace(/\n{2,}/g, "\n")
     .trim();
 
-  return condenseForSpeech(spoken);
-}
-
-/**
- * Keeps whole sentences up to a word budget (about 15-20 seconds of speech).
- * Only the spoken version is shortened; the full answer stays on screen.
- */
-export function condenseForSpeech(text: string): string {
-  const sentences = text.split(/(?<=[.!?])\s+/).filter(Boolean);
-  const kept: string[] = [];
-  let words = 0;
-
-  for (const sentence of sentences) {
-    const count = sentence.split(/\s+/).length;
-    if (words + count > SPOKEN_WORD_BUDGET) break;
-    kept.push(sentence);
-    words += count;
-  }
-
-  if (kept.length === sentences.length) return kept.join(" ");
-  if (kept.length === 0) {
-    const firstWords = sentences[0].split(/\s+/).slice(0, SPOKEN_WORD_BUDGET).join(" ");
-    return `${firstWords}. ${FULL_ANSWER_HINT}`;
-  }
-  return `${kept.join(" ")} ${FULL_ANSWER_HINT}`;
+  return spoken;
 }

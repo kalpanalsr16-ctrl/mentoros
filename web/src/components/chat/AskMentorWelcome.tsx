@@ -28,12 +28,10 @@ export type ContinueLearningConcept = {
  */
 export function AskMentorWelcome({
   onSubmit,
-  onVoiceStart,
   continueLearning,
   streak,
 }: {
   onSubmit: (text: string, meta?: TurnMeta) => void;
-  onVoiceStart?: () => void;
   continueLearning: ContinueLearningConcept | null;
   streak: number;
 }) {
@@ -69,7 +67,6 @@ export function AskMentorWelcome({
             className={styles.input}
           />
           <MicButton
-            onRecordingStart={onVoiceStart}
             onTranscript={(transcript, voice) => onSubmit(transcript, { modality: "voice", voice })}
           />
           <Button type="submit" disabled={!value.trim()}>

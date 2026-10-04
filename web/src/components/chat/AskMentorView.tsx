@@ -5,6 +5,8 @@ import { ChatShell } from "./ChatShell";
 import { AskMentorWelcome, type ContinueLearningConcept } from "./AskMentorWelcome";
 import type { ChatMessage } from "./MessageList";
 import { useAvatarSession } from "@/components/voice/useAvatarSession";
+import { DrPawsStage } from "@/components/voice/DrPawsStage";
+import { DrPawsInvite } from "@/components/voice/DrPawsInvite";
 import type { TurnMeta } from "@/lib/chat/types";
 import styles from "./AskMentorView.module.css";
 
@@ -31,29 +33,48 @@ export function AskMentorView({
 }) {
   const [pending, setPending] = useState<{ content: string; meta?: TurnMeta } | null>(null);
   const avatar = useAvatarSession();
+  const [stageOpen, setStageOpen] = useState(false);
+
+  // Derived, not synced: the stage disappears whenever the session ends (End, idle timeout, or page leave).
+  const stageVisible = stageOpen && avatar.status !== "idle";
+
+  function openStage() {
+    setStageOpen(true);
+    void avatar.start();
+  }
+
+  function closeStage() {
+    void avatar.end();
+  }
 
   const hasStarted = initialMessages.length > 0 || Boolean(autoSendMessage) || Boolean(pending);
 
-  if (!hasStarted) {
-    return (
-      <div className={styles.welcomeWrap}>
-        <AskMentorWelcome
-          onSubmit={(content, meta) => setPending({ content, meta })}
-          onVoiceStart={() => void avatar.start()}
-          continueLearning={continueLearning}
-          streak={streak}
-        />
-      </div>
-    );
-  }
-
-  return (
+  const conversation = hasStarted ? (
     <ChatShell
       initialConversationId={initialConversationId}
       initialMessages={initialMessages}
       autoSendMessage={pending?.content ?? autoSendMessage}
       autoSendMeta={pending?.meta}
       avatar={avatar}
+      drPawsOn={stageVisible}
     />
+  ) : (
+    <div className={styles.welcomeWrap}>
+      <AskMentorWelcome
+        onSubmit={(content, meta) => setPending({ content, meta })}
+        continueLearning={continueLearning}
+        streak={streak}
+      />
+    </div>
+  );
+
+  return (
+    <div className={stageVisible ? styles.split : styles.single}>
+      {stageVisible && (
+        <DrPawsStage status={avatar.status} speaking={avatar.speaking} videoRef={avatar.videoRef} onEnd={closeStage} />
+      )}
+      <div className={styles.conversation}>{conversation}</div>
+      {!stageVisible && <DrPawsInvite onOpen={openStage} />}
+    </div>
   );
 }

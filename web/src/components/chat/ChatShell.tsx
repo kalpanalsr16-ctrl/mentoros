@@ -15,7 +15,6 @@ import {
   type useAvatarSession,
 } from "@/components/voice/useAvatarSession";
 import { toSpeechText } from "@/lib/avatar/speech-text";
-import { AvatarPanel } from "@/components/voice/AvatarPanel";
 import styles from "./ChatShell.module.css";
 
 export function ChatShell({
@@ -24,6 +23,7 @@ export function ChatShell({
   autoSendMessage,
   autoSendMeta,
   avatar,
+  drPawsOn,
 }: {
   initialConversationId: string | null;
   initialMessages: ChatMessage[];
@@ -32,6 +32,8 @@ export function ChatShell({
   /** Set when the auto-sent message came from voice, so its answer is spoken by Dr. Paws. */
   autoSendMeta?: TurnMeta;
   avatar: ReturnType<typeof useAvatarSession>;
+  /** True while the Dr. Paws stage is open; voice answers are spoken only then. */
+  drPawsOn: boolean;
 }) {
   const [conversationId, setConversationId] = useState(initialConversationId);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
@@ -135,7 +137,7 @@ export function ChatShell({
 
           if (meta?.modality === "voice") {
             const turn: PendingVoiceTurn = { ...meta.voice, replyDoneAt: Date.now() };
-            if (event.payload.replyKind === "text") {
+            if (event.payload.replyKind === "text" && drPawsOn) {
               const spokenText = toSpeechText(event.payload.assistantMessage.content);
               void avatar.start().then((ready) => {
                 if (!ready || !avatar.speak(spokenText, turn)) {
@@ -209,12 +211,6 @@ export function ChatShell({
             How I answered
           </LinkButton>
         </div>
-        <AvatarPanel
-          status={avatar.status}
-          speaking={avatar.speaking}
-          videoRef={avatar.videoRef}
-          onEnd={() => void avatar.end()}
-        />
         <MessageList
           messages={messages}
           streamingMessageId={streamingMessageId}
@@ -226,7 +222,6 @@ export function ChatShell({
         <MessageInput
           onSend={handleSend}
           onCancel={handleCancel}
-          onVoiceStart={() => void avatar.start()}
           disabled={sending}
         />
       </div>

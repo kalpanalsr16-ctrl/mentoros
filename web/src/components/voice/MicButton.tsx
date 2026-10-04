@@ -28,11 +28,9 @@ function MicIcon() {
  */
 export function MicButton({
   disabled = false,
-  onRecordingStart,
   onTranscript,
 }: {
   disabled?: boolean;
-  onRecordingStart?: () => void;
   onTranscript: (transcript: string, voice: VoiceTurnTiming) => void;
 }) {
   const [state, dispatch] = useReducer(nextVoiceState, "IDLE" as VoiceState);
@@ -52,7 +50,6 @@ export function MicButton({
       return;
     }
     dispatch({ type: "START" });
-    onRecordingStart?.();
     void reportVoiceEvent("voice_recording_started");
   }
 

@@ -4,3 +4,34 @@
   display: flex;
   align-items: center;
 }
+
+.single,
+.split {
+  display: grid;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+
+.single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.split {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.conversation {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+
+@media (max-width: 767px) {
+  .split {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 52%) minmax(0, 1fr);
+  }
+}
