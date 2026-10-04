@@ -8,13 +8,9 @@ import { StreamingIndicator } from "@/design-system/patterns/StreamingIndicator"
 import { LinkButton } from "@/design-system/primitives/LinkButton";
 import { TransparencyIcon } from "@/design-system/icons";
 import { parseChatStream } from "@/lib/chat/parse-chat-stream";
-import type { StreamingUserState, TurnMeta } from "@/lib/chat/types";
-import {
-  reportUnspokenVoiceTurn,
-  type PendingVoiceTurn,
-  type useAvatarSession,
-} from "@/components/voice/useAvatarSession";
-import { toSpeechText } from "@/lib/avatar/speech-text";
+import type { StreamingUserState, TurnMeta, VoiceTurnTiming } from "@/lib/chat/types";
+import type { useAvatarSession } from "@/components/voice/useAvatarSession";
+import { createSpeechStreamer, splitSpeechSentences } from "@/lib/avatar/speech-sentences";
 import styles from "./ChatShell.module.css";
 
 export function ChatShell({
@@ -68,6 +64,28 @@ export function ChatShell({
    * retry (reusing the existing last user message already in `messages`,
    * nothing new to show optimistically).
    */
+  /**
+   * Finishes Dr. Paws's part of a voice reply. Streamed sentences are already
+   * out; the held-back final sentence goes out now with the done flag. A reply
+   * that never streamed is spoken whole, once it's complete.
+   */
+  function finishSpokenReply(
+    timing: VoiceTurnTiming,
+    streamed: boolean,
+    streamer: ReturnType<typeof createSpeechStreamer> | null,
+    content: string,
+  ) {
+    if (streamed && streamer) {
+      avatar.sendSentences(streamer.flush(), true);
+    } else if (avatar.beginTurn(timing)) {
+      avatar.sendSentences(splitSpeechSentences(content).map((s) => s.text), true);
+    } else {
+      void avatar.reportUnspoken(timing, "unavailable");
+      return;
+    }
+    avatar.markReplyDone();
+  }
+
   async function sendRequest(
     requestBody: Record<string, unknown>,
     localUserContent: string | null,
@@ -83,6 +101,12 @@ export function ChatShell({
     }
 
     let draftId: string | null = null;
+    // Dr. Paws speaks sentence by sentence as the reply streams in, so the
+    // speech starts while the text is still appearing in the chat.
+    const voiceTiming = meta?.modality === "voice" && drPawsOn ? meta.voice : null;
+    const streamer = voiceTiming ? createSpeechStreamer() : null;
+    let spokenTurnStarted = false;
+    let streamingToAvatar = false;
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
@@ -105,6 +129,16 @@ export function ChatShell({
         if (event.type === "state") {
           setStreamingState(event.state);
         } else if (event.type === "chunk") {
+          if (streamer && voiceTiming) {
+            if (!spokenTurnStarted) {
+              spokenTurnStarted = true;
+              streamingToAvatar = avatar.beginTurn(voiceTiming);
+            }
+            if (streamingToAvatar) {
+              const ready = streamer.push(event.text);
+              if (ready.length > 0) avatar.sendSentences(ready, false);
+            }
+          }
           if (draftId === null) {
             draftId = `pending-assistant-${crypto.randomUUID()}`;
             const newDraftId = draftId;
@@ -136,16 +170,10 @@ export function ChatShell({
           });
 
           if (meta?.modality === "voice") {
-            const turn: PendingVoiceTurn = { ...meta.voice, replyDoneAt: Date.now() };
-            if (event.payload.replyKind === "text" && drPawsOn) {
-              const spokenText = toSpeechText(event.payload.assistantMessage.content);
-              void avatar.start().then((ready) => {
-                if (!ready || !avatar.speak(spokenText, turn)) {
-                  void reportUnspokenVoiceTurn(turn, "unavailable");
-                }
-              });
+            if (!voiceTiming || event.payload.replyKind !== "text") {
+              void avatar.reportUnspoken(meta.voice, "not_spoken");
             } else {
-              void reportUnspokenVoiceTurn(turn, "not_spoken");
+              finishSpokenReply(meta.voice, streamingToAvatar, streamer, event.payload.assistantMessage.content);
             }
           }
         } else if (event.type === "error") {
@@ -213,6 +241,7 @@ export function ChatShell({
         </div>
         <MessageList
           messages={messages}
+          speakingSentence={drPawsOn ? avatar.activeSentence : null}
           streamingMessageId={streamingMessageId}
           onViewReasoning={handleViewReasoning}
           onRetry={sending ? undefined : handleRetry}
@@ -222,6 +251,7 @@ export function ChatShell({
         <MessageInput
           onSend={handleSend}
           onCancel={handleCancel}
+          onVoiceStart={() => void avatar.start()}
           disabled={sending}
         />
       </div>

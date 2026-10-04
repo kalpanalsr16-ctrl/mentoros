@@ -157,3 +157,12 @@
   overflow-y: hidden;
   padding: var(--space-1) 0;
 }
+
+.spokenBlock {
+  background: rgba(99, 102, 241, 0.14);
+  border-left: 3px solid var(--color-interactive);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-2);
+  margin: 0 calc(var(--space-2) * -1);
+  transition: background-color 200ms ease;
+}

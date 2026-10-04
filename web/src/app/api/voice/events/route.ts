@@ -52,6 +52,9 @@ function sanitizePayload(eventName: string, raw: unknown): Record<string, unknow
         transcriptToReplyMs: latency(input.transcriptToReplyMs),
       };
       if (input.replyToAvatarAudioMs !== undefined) payload.replyToAvatarAudioMs = latency(input.replyToAvatarAudioMs);
+      if (input.replyStartToAvatarAudioMs !== undefined) {
+        payload.replyStartToAvatarAudioMs = latency(input.replyStartToAvatarAudioMs);
+      }
       if (input.totalMs !== undefined) payload.totalMs = latency(input.totalMs);
       return payload;
     }

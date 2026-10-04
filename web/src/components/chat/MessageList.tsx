@@ -8,6 +8,7 @@ import { MemoryUpdateNote } from "@/design-system/patterns/MemoryUpdateNote";
 import type { PracticeSet } from "@/lib/agents/practice-agent";
 import type { AssessmentReport } from "@/lib/agents/assessment-agent";
 import type { ReplyKind, MasteryUpdatePayload } from "@/lib/chat/types";
+import { splitSpeechSentences } from "@/lib/avatar/speech-sentences";
 
 export type ChatMessage = {
   id: string;
@@ -33,8 +34,11 @@ export function MessageList({
   streamingMessageId,
   onViewReasoning,
   onRetry,
+  speakingSentence,
 }: {
   messages: ChatMessage[];
+  /** Sentence Dr. Paws is speaking in the latest assistant reply; its paragraph is highlighted. */
+  speakingSentence?: number | null;
   /** The one message currently receiving `chunk` events (Sprint 4) -- shows a caret, no actions row yet. */
   streamingMessageId: string | null;
   onViewReasoning: (traceId: string) => void;
@@ -83,6 +87,11 @@ export function MessageList({
           streaming={message.id === streamingMessageId}
           onViewReasoning={onViewReasoning}
           onRetry={index === lastAssistantIndex ? onRetry : undefined}
+          highlightParagraph={
+            index === lastAssistantIndex && speakingSentence != null
+              ? (splitSpeechSentences(message.content)[speakingSentence]?.paragraph ?? null)
+              : undefined
+          }
         />
       ))}
       <div ref={bottomRef} />
@@ -95,11 +104,13 @@ function MessageRow({
   streaming,
   onViewReasoning,
   onRetry,
+  highlightParagraph,
 }: {
   message: ChatMessage;
   streaming: boolean;
   onViewReasoning: (traceId: string) => void;
   onRetry?: () => void;
+  highlightParagraph?: number | null;
 }) {
   const viewReasoning = message.trace_id ? () => onViewReasoning(message.trace_id!) : undefined;
 
@@ -136,6 +147,7 @@ function MessageRow({
       content={message.content}
       variant={variant}
       streaming={streaming}
+      highlightParagraph={highlightParagraph}
       onViewReasoning={message.role === "assistant" ? viewReasoning : undefined}
       onRetry={message.role === "assistant" ? onRetry : undefined}
     />

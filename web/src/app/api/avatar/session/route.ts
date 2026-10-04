@@ -22,9 +22,11 @@ export async function POST() {
 
   // Tavus's free tier allows one concurrent conversation, so a session the
   // student left open (e.g. after a crash) must not block the new one.
-  for (const staleConversationId of avatarSessionRegistry.takeAllFor(studentId)) {
-    void endTavusConversation({ apiKey: process.env.TAVUS_API_KEY, conversationId: staleConversationId });
-  }
+  await Promise.all(
+    avatarSessionRegistry.takeAllFor(studentId).map((staleConversationId) =>
+      endTavusConversation({ apiKey: process.env.TAVUS_API_KEY, conversationId: staleConversationId }),
+    ),
+  );
 
   const result = await createTavusConversation({
     apiKey: process.env.TAVUS_API_KEY,

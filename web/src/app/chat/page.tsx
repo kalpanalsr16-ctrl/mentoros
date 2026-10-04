@@ -4,6 +4,8 @@ import { getDashboardData } from "@/lib/dashboard/get-dashboard-data";
 import { AskMentorView } from "@/components/chat/AskMentorView";
 import type { ChatMessage } from "@/components/chat/MessageList";
 
+const HISTORY_MESSAGE_LIMIT = 200;
+
 export default async function ChatPage({
   searchParams,
 }: {
@@ -40,31 +42,25 @@ export default async function ChatPage({
     redirect("/onboarding");
   }
 
-  // Load the student's most recent conversation (if any) so a page
-  // reload shows persisted history instead of starting from empty.
-  const { data: conversations } = await supabase
-    .from("conversations")
-    .select("id")
-    .order("started_at", { ascending: false })
-    .limit(1);
+  // History spans every conversation, not just the newest one: AI Tutor and
+  // Ask Mentor each start conversations, and voice turns land in their own,
+  // so loading only the latest conversation hid real history. New messages
+  // continue in the conversation of the most recent message.
+  const { data: recentRows } = await supabase
+    .from("messages")
+    .select("id, role, content, trace_id, conversation_id")
+    .is("superseded_at", null)
+    .order("created_at", { ascending: false })
+    .limit(HISTORY_MESSAGE_LIMIT);
 
-  const conversationId = conversations?.[0]?.id ?? null;
-
-  let initialMessages: ChatMessage[] = [];
-  if (conversationId) {
-    // superseded_at is null -- a Retry (Sprint 4) marks the attempt it
-    // replaces superseded rather than deleting or overwriting it (trace/
-    // evaluation integrity), so the default conversation view excludes
-    // those rows here rather than at write time.
-    const { data: messageRows } = await supabase
-      .from("messages")
-      .select("id, role, content, trace_id")
-      .eq("conversation_id", conversationId)
-      .is("superseded_at", null)
-      .order("created_at", { ascending: true });
-
-    initialMessages = messageRows ?? [];
-  }
+  const orderedRows = [...(recentRows ?? [])].reverse();
+  const conversationId = orderedRows.at(-1)?.conversation_id ?? null;
+  const initialMessages: ChatMessage[] = orderedRows.map(({ id, role, content, trace_id }) => ({
+    id,
+    role,
+    content,
+    trace_id,
+  }));
 
   // Explicit onboarding action (Sprint 4): "Start Diagnostic" navigates
   // here with ?autosend=diagnostic rather than relying on the student to

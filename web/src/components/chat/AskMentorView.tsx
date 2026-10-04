@@ -33,17 +33,17 @@ export function AskMentorView({
 }) {
   const [pending, setPending] = useState<{ content: string; meta?: TurnMeta } | null>(null);
   const avatar = useAvatarSession();
-  const [stageOpen, setStageOpen] = useState(false);
-
-  // Derived, not synced: the stage disappears whenever the session ends (End, idle timeout, or page leave).
-  const stageVisible = stageOpen && avatar.status !== "idle";
+  // Dr. Paws's stage is the default view. Its session connects only when the
+  // student starts recording, so an idle tab uses no Tavus minutes.
+  const [stageOpen, setStageOpen] = useState(true);
+  const stageVisible = stageOpen;
 
   function openStage() {
     setStageOpen(true);
-    void avatar.start();
   }
 
-  function closeStage() {
+  function hideStage() {
+    setStageOpen(false);
     void avatar.end();
   }
 
@@ -62,6 +62,7 @@ export function AskMentorView({
     <div className={styles.welcomeWrap}>
       <AskMentorWelcome
         onSubmit={(content, meta) => setPending({ content, meta })}
+        onVoiceStart={() => void avatar.start()}
         continueLearning={continueLearning}
         streak={streak}
       />
@@ -71,7 +72,13 @@ export function AskMentorView({
   return (
     <div className={stageVisible ? styles.split : styles.single}>
       {stageVisible && (
-        <DrPawsStage status={avatar.status} speaking={avatar.speaking} videoRef={avatar.videoRef} onEnd={closeStage} />
+        <DrPawsStage
+          status={avatar.status}
+          speaking={avatar.speaking}
+          videoRef={avatar.videoRef}
+          onEnd={() => void avatar.end()}
+          onHide={hideStage}
+        />
       )}
       <div className={styles.conversation}>{conversation}</div>
       {!stageVisible && <DrPawsInvite onOpen={openStage} />}

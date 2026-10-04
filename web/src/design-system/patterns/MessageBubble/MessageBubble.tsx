@@ -3,6 +3,7 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import { LinkButton } from "@/design-system/primitives/LinkButton";
 import { ViewReasoningIcon, RetryIcon } from "@/design-system/icons";
+import { splitParagraphs } from "@/lib/avatar/speech-sentences";
 import styles from "./MessageBubble.module.css";
 
 export type MessageBubbleVariant = "user" | "assistant" | "safety";
@@ -16,6 +17,8 @@ export type MessageBubbleProps = {
   onRetry?: () => void;
   /** True only while this exact message is the live `chunk` target (Sprint 4) -- shows a trailing caret, never persisted. */
   streaming?: boolean;
+  /** Paragraph Dr. Paws is speaking right now; that paragraph is highlighted. Omitted when no voice reply is playing. */
+  highlightParagraph?: number | null;
 };
 
 /**
@@ -31,16 +34,34 @@ export type MessageBubbleProps = {
  * the same accepted cosmetic trade-off every live-Markdown chat product
  * makes, not something worth engineering around.
  */
-export function MessageBubble({ content, variant, onViewReasoning, onRetry, streaming }: MessageBubbleProps) {
+export function MessageBubble({
+  content,
+  variant,
+  onViewReasoning,
+  onRetry,
+  streaming,
+  highlightParagraph,
+}: MessageBubbleProps) {
+  const paragraphs = highlightParagraph === undefined || highlightParagraph === null ? null : splitParagraphs(content);
   return (
     <div className={`${styles.row} ${styles[`${variant}Row`]}`}>
       <div className={styles.column}>
         <div className={`${styles.bubble} ${styles[variant]}`}>
           {variant === "safety" && <span className={styles.safetyLabel}>MentorOS</span>}
           <div className={styles.markdown}>
-            <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
-              {content}
-            </ReactMarkdown>
+            {paragraphs ? (
+              paragraphs.map((paragraph, index) => (
+                <div key={index} className={index === highlightParagraph ? styles.spokenBlock : undefined}>
+                  <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                    {paragraph}
+                  </ReactMarkdown>
+                </div>
+              ))
+            ) : (
+              <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                {content}
+              </ReactMarkdown>
+            )}
             {streaming && <span className={styles.caret} aria-hidden="true" />}
           </div>
         </div>

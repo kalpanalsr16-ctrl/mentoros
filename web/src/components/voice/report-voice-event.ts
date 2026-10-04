@@ -11,6 +11,7 @@ export type VoiceTurnReport = {
   questionEndToTranscriptMs: number;
   transcriptToReplyMs: number;
   replyToAvatarAudioMs?: number;
+  replyStartToAvatarAudioMs?: number;
   totalMs?: number;
   avatarStatus: AvatarTurnStatus;
 };
