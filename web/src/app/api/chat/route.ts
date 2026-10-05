@@ -140,6 +140,9 @@ export async function POST(request: Request) {
   // Modality is metadata only: voice and typed questions take the identical
   // pipeline below. voiceTraceId links this turn to its transcription event.
   const modality = body?.modality === "voice" ? "voice" : "text";
+  // Where the turn started, so Learning can tell a student's own questions from
+  // the AI Tutor's automatic lesson request. Only the two tutor values are kept.
+  const source = body?.source === "tutor_auto" || body?.source === "tutor" ? body.source : null;
   const voiceTraceId =
     modality === "voice" && typeof body?.voiceTraceId === "string" && UUID_PATTERN.test(body.voiceTraceId)
       ? body.voiceTraceId
@@ -333,6 +336,7 @@ export async function POST(request: Request) {
             assistantMessageId: assistantMessage.id,
             modality,
             ...(voiceTraceId ? { voiceTraceId } : {}),
+            ...(source ? { source } : {}),
             ...pipelineResult.llmMetadata,
           },
         });

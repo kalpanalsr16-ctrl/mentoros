@@ -6,6 +6,8 @@ import { getRevisionQueue } from "@/lib/revision/get-revision-queue";
 import { getRetentionTrend } from "@/lib/retention/get-retention-trend";
 import { getLearningSnapshot } from "@/lib/learning-snapshot/get-learning-snapshot";
 import { buildRecommendedNext } from "@/lib/recommended-next/recommended-next-aggregation";
+import { getLearnerTopics } from "@/lib/learner-topics/get-learner-topics";
+import { LearnerTopicsSection } from "@/components/learning/LearnerTopicsSection";
 import { Card } from "@/design-system/primitives/Card";
 import { StatTile } from "@/design-system/primitives/StatTile";
 import { ExpandableConceptRow } from "@/components/learning/ExpandableConceptRow";
@@ -40,10 +42,14 @@ export default async function LearningPage() {
     );
   }
 
+  const now = new Date();
+  const learnerTopics = await getLearnerTopics(supabase, studentId, now);
+
   const allConcepts = overview.flatMap((chapter) => chapter.concepts);
   const hasAnyActivity = allConcepts.some((c) => c.status !== "new");
+  const hasTopics = (learnerTopics?.topics.length ?? 0) > 0;
 
-  if (!hasAnyActivity) {
+  if (!hasAnyActivity && !hasTopics) {
     return (
       <div className={styles.page}>
         <h1 className={styles.heading}>My Learning</h1>
@@ -61,7 +67,6 @@ export default async function LearningPage() {
     );
   }
 
-  const now = new Date();
   const [retentionTrend, revisionQueue, patterns] = await Promise.all([
     getRetentionTrend(supabase, studentId, now),
     getRevisionQueue(supabase, studentId),
@@ -136,6 +141,10 @@ export default async function LearningPage() {
             </Link>
           </div>
         </Card>
+      )}
+
+      {learnerTopics && hasTopics && (
+        <LearnerTopicsSection topics={learnerTopics.topics} suggestions={learnerTopics.suggestions} />
       )}
 
       <section className={styles.section}>

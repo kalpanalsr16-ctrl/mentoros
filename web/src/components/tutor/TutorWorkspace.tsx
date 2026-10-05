@@ -47,7 +47,7 @@ export function TutorWorkspace({ conceptId, conceptName }: { conceptId: string; 
   const [panelOpen, setPanelOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
-  async function ask(prompt: string) {
+  async function ask(prompt: string, source: "tutor_auto" | "tutor") {
     abortRef.current?.abort();
     setError(null);
     setResult(null);
@@ -62,7 +62,7 @@ export function TutorWorkspace({ conceptId, conceptName }: { conceptId: string; 
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: prompt }),
+        body: JSON.stringify({ content: prompt, source }),
         signal: abortController.signal,
       });
 
@@ -103,7 +103,7 @@ export function TutorWorkspace({ conceptId, conceptName }: { conceptId: string; 
   useEffect(() => {
     if (askedConceptRef.current === conceptId) return;
     askedConceptRef.current = conceptId;
-    ask(`Can you explain ${conceptName}?`);
+    ask(`Can you explain ${conceptName}?`, "tutor_auto");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conceptId]);
 
@@ -137,11 +137,11 @@ export function TutorWorkspace({ conceptId, conceptName }: { conceptId: string; 
         <Button
           variant="secondary"
           disabled={busy}
-          onClick={() => ask(`I don't understand ${conceptName}. Can you explain it a different way?`)}
+          onClick={() => ask(`I don't understand ${conceptName}. Can you explain it a different way?`, "tutor")}
         >
           I don&apos;t understand
         </Button>
-        <Button disabled={busy} onClick={() => ask(`Give me a practice problem on ${conceptName}.`)}>
+        <Button disabled={busy} onClick={() => ask(`Give me a practice problem on ${conceptName}.`, "tutor")}>
           Practice this
         </Button>
       </div>

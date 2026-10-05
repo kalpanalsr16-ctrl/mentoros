@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --import ./scripts/alias-loader.mjs --test tests/**/*.test.ts",
+    "test": "node --experimental-strip-types --import ./scripts/alias-loader.mjs --test tests/*.test.ts tests/*/*.test.ts",
     "eval:golden": "node --env-file=.env.local --experimental-strip-types --import ./scripts/alias-loader.mjs scripts/run-golden-eval.ts",
     "seed:demo-learning": "node --env-file=.env.local --experimental-strip-types --import ./scripts/alias-loader.mjs scripts/seed-demo-learning-data.ts"
   },
