@@ -39,7 +39,16 @@ type LessonResult = {
  * for concept X" from past events (concept_explained doesn't log the
  * response text, only nextStep/confidence).
  */
-export function TutorWorkspace({ conceptId, conceptName }: { conceptId: string; conceptName: string }) {
+export function TutorWorkspace({
+  conceptId,
+  conceptName,
+  canInspectTraces,
+}: {
+  conceptId: string;
+  conceptName: string;
+  /** Showcase-only: enables the 'How I taught this' panel. */
+  canInspectTraces: boolean;
+}) {
   const [result, setResult] = useState<LessonResult | null>(null);
   const [streamingState, setStreamingState] = useState<StreamingUserState | null>(null);
   const [streamingText, setStreamingText] = useState("");
@@ -116,7 +125,7 @@ export function TutorWorkspace({ conceptId, conceptName }: { conceptId: string; 
           <p className={styles.eyebrow}>Current concept</p>
           <h2 className={styles.conceptName}>{conceptName}</h2>
         </div>
-        {result && (
+        {canInspectTraces && result && (
           <LinkButton icon={<TransparencyIcon aria-hidden="true" />} onClick={() => setPanelOpen(true)}>
             How I taught this
           </LinkButton>
@@ -146,7 +155,7 @@ export function TutorWorkspace({ conceptId, conceptName }: { conceptId: string; 
         </Button>
       </div>
 
-      {panelOpen && result && (
+      {canInspectTraces && panelOpen && result && (
         <div className={styles.panelWrap}>
           <TransparencyPanel traceId={result.traceId} onClose={() => setPanelOpen(false)} />
         </div>

@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getRecentTraces } from "@/lib/observability/get-recent-traces";
+import { checkShowcaseAccess, showcaseDeniedResponse } from "@/lib/showcase/showcase-access";
 
 /**
  * Read-only recent-traces feed for Architecture Explorer (Epic E6) --
@@ -10,11 +11,8 @@ import { getRecentTraces } from "@/lib/observability/get-recent-traces";
  */
 export async function GET(request: Request) {
   const supabase = await createClient();
-  const { data: claimsData } = await supabase.auth.getClaims();
-
-  if (!claimsData?.claims) {
-    return Response.json({ error: "Not signed in." }, { status: 401 });
-  }
+  const denied = showcaseDeniedResponse(await checkShowcaseAccess(supabase));
+  if (denied) return denied;
 
   const url = new URL(request.url);
   const from = url.searchParams.get("from") ?? undefined;

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { LearnerShell } from "@/design-system/layouts/LearnerShell";
 import { resolveShellForRole } from "@/lib/auth/resolve-shell";
+import { checkShowcaseAccess } from "@/lib/showcase/showcase-access";
 
 /**
  * Authentication shell for the Student experience
@@ -33,5 +34,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const email = data.claims.email as string | undefined;
 
-  return <LearnerShell userEmail={email}>{children}</LearnerShell>;
+  const showcaseAccess = (await checkShowcaseAccess(supabase)) === "authorized";
+
+  return (
+    <LearnerShell userEmail={email} showcaseAccess={showcaseAccess}>
+      {children}
+    </LearnerShell>
+  );
 }

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getDashboardData } from "@/lib/dashboard/get-dashboard-data";
 import { AskMentorView } from "@/components/chat/AskMentorView";
+import { checkShowcaseAccess } from "@/lib/showcase/showcase-access";
 import type { ChatMessage } from "@/components/chat/MessageList";
 
 const HISTORY_MESSAGE_LIMIT = 200;
@@ -121,6 +122,8 @@ export default async function ChatPage({
       }
     : null;
 
+  const canInspectTraces = (await checkShowcaseAccess(supabase)) === "authorized";
+
   return (
     <AskMentorView
       initialConversationId={conversationId}
@@ -128,6 +131,7 @@ export default async function ChatPage({
       autoSendMessage={autoSendMessage}
       continueLearning={continueLearning}
       streak={dashboardData?.streak ?? 0}
+      canInspectTraces={canInspectTraces}
     />
   );
 }

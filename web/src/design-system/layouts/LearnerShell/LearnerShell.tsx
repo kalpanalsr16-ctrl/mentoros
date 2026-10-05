@@ -35,6 +35,8 @@ const ACCOUNT_ITEMS = [
 
 export type LearnerShellProps = {
   userEmail?: string;
+  /** From checkShowcaseAccess on the server. Gates Dev Brief and the showcase link in the header. */
+  showcaseAccess?: boolean;
   children: ReactNode;
   /**
    * Opts the content region out of the default padding + independent
@@ -53,15 +55,21 @@ export type LearnerShellProps = {
  * as a pattern rather than shared as one component since the two shells'
  * nav items and Header homeHref genuinely differ per role.
  */
-export function LearnerShell({ userEmail, children, fullBleed = false }: LearnerShellProps) {
+export function LearnerShell({ userEmail, showcaseAccess = false, children, fullBleed = false }: LearnerShellProps) {
+  const secondaryItems = showcaseAccess ? SECONDARY_NAV_ITEMS : [];
   return (
     <div className={styles.shell}>
-      <Header userEmail={userEmail} homeHref="/chat" accountItems={ACCOUNT_ITEMS} />
+      <Header
+        userEmail={userEmail}
+        homeHref="/chat"
+        accountItems={ACCOUNT_ITEMS}
+        showcaseHref={showcaseAccess ? "/showcase" : undefined}
+      />
       <div className={styles.body}>
-        <Sidebar items={PRIMARY_NAV_ITEMS} secondaryItems={SECONDARY_NAV_ITEMS} ariaLabel="Learner navigation" />
+        <Sidebar items={PRIMARY_NAV_ITEMS} secondaryItems={secondaryItems} ariaLabel="Learner navigation" />
         <main className={fullBleed ? styles.contentFullBleed : styles.content}>{children}</main>
       </div>
-      <BottomTabBar items={[...PRIMARY_NAV_ITEMS, ...SECONDARY_NAV_ITEMS]} />
+      <BottomTabBar items={[...PRIMARY_NAV_ITEMS, ...secondaryItems]} />
     </div>
   );
 }

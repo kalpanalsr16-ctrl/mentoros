@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { LearnerShell } from "@/design-system/layouts/LearnerShell";
 import { resolveShellForRole } from "@/lib/auth/resolve-shell";
+import { checkShowcaseAccess } from "@/lib/showcase/showcase-access";
 
 /**
  * Same auth+role gate as chat/app/tutor's layouts -- applies to every
@@ -29,5 +30,11 @@ export default async function LearningLayout({ children }: { children: React.Rea
 
   const email = data.claims.email as string | undefined;
 
-  return <LearnerShell userEmail={email}>{children}</LearnerShell>;
+  const showcaseAccess = (await checkShowcaseAccess(supabase)) === "authorized";
+
+  return (
+    <LearnerShell userEmail={email} showcaseAccess={showcaseAccess}>
+      {children}
+    </LearnerShell>
+  );
 }

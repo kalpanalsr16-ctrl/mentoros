@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { createPostgresTransparencyProvider } from "@/lib/observability/postgres-transparency-provider";
+import { checkShowcaseAccess, showcaseDeniedResponse } from "@/lib/showcase/showcase-access";
 
 /**
  * Thin, read-only wrapper around TransparencyProvider for the AI
@@ -16,11 +17,8 @@ export async function GET(
   { params }: { params: Promise<{ traceId: string }> },
 ) {
   const supabase = await createClient();
-  const { data: claimsData } = await supabase.auth.getClaims();
-
-  if (!claimsData?.claims) {
-    return Response.json({ error: "Not signed in." }, { status: 401 });
-  }
+  const denied = showcaseDeniedResponse(await checkShowcaseAccess(supabase));
+  if (denied) return denied;
 
   const { traceId } = await params;
   const transparencyProvider = createPostgresTransparencyProvider(supabase);

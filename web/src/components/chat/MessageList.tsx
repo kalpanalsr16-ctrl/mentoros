@@ -41,7 +41,8 @@ export function MessageList({
   speakingSentence?: number | null;
   /** The one message currently receiving `chunk` events (Sprint 4) -- shows a caret, no actions row yet. */
   streamingMessageId: string | null;
-  onViewReasoning: (traceId: string) => void;
+  /** Omitted for accounts without ai_showcase_access, so no reasoning control renders. */
+  onViewReasoning?: (traceId: string) => void;
   /** Undefined while a request is in flight -- Retry only ever targets the latest assistant turn, and only when nothing is already generating. */
   onRetry?: () => void;
 }) {
@@ -108,11 +109,12 @@ function MessageRow({
 }: {
   message: ChatMessage;
   streaming: boolean;
-  onViewReasoning: (traceId: string) => void;
+  onViewReasoning?: (traceId: string) => void;
   onRetry?: () => void;
   highlightParagraph?: number | null;
 }) {
-  const viewReasoning = message.trace_id ? () => onViewReasoning(message.trace_id!) : undefined;
+  const viewReasoning =
+    message.trace_id && onViewReasoning ? () => onViewReasoning(message.trace_id!) : undefined;
 
   if (message.role === "assistant" && message.replyKind === "practice" && message.practiceSet) {
     return (

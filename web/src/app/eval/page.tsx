@@ -1,20 +1,24 @@
 import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { checkShowcaseAccess } from "@/lib/showcase/showcase-access";
 import { EvalRunLiveView } from "../studio/evaluation/runs/EvalRunLiveView";
 import { getLatestPublicEvalRun } from "@/lib/evaluation-analytics/get-public-eval-run";
 import styles from "./page.module.css";
 
 /**
- * `/eval` -- the recruiter-facing evaluation showcase. No sign-in
- * required: readable only because eval_runs/eval_run_items rows the
- * harness writes are explicitly marked `is_public = true`
- * (0024_eval_runs.sql) -- deliberate, narrow public exposure of
- * synthetic golden-question results only, never real student data. Uses
- * the plain anon-key server client (not the service-role client) so this
- * page reads under the exact same RLS a random visitor's browser would.
+ * `/eval` -- evaluation internals, so it is part of the AI showcase and gated
+ * by ai_showcase_access (docs/AI_SHOWCASE_ARCHITECTURE.md). Signed-out visitors
+ * go to sign-in; signed-in accounts without the capability get a 404. Reads
+ * the golden-question runs through the caller's own session, so the RLS
+ * policy in 0029_showcase_eval_access.sql is the second gate.
  */
 export default async function PublicEvalPage() {
   const supabase = await createClient();
+  const state = await checkShowcaseAccess(supabase);
+  if (state === "unauthenticated") redirect("/sign-in");
+  if (state === "forbidden") notFound();
+
   const run = await getLatestPublicEvalRun(supabase);
 
   return (

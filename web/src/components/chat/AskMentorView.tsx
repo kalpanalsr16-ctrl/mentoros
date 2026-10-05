@@ -24,12 +24,14 @@ export function AskMentorView({
   autoSendMessage,
   continueLearning,
   streak,
+  canInspectTraces,
 }: {
   initialConversationId: string | null;
   initialMessages: ChatMessage[];
   autoSendMessage?: string;
   continueLearning: ContinueLearningConcept | null;
   streak: number;
+  canInspectTraces: boolean;
 }) {
   const [pending, setPending] = useState<{ content: string; meta?: TurnMeta } | null>(null);
   const avatar = useAvatarSession();
@@ -57,6 +59,7 @@ export function AskMentorView({
       autoSendMeta={pending?.meta}
       avatar={avatar}
       drPawsOn={stageVisible}
+      canInspectTraces={canInspectTraces}
     />
   ) : (
     <div className={styles.welcomeWrap}>

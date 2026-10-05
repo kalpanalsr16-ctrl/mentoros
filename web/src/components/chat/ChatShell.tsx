@@ -20,6 +20,7 @@ export function ChatShell({
   autoSendMeta,
   avatar,
   drPawsOn,
+  canInspectTraces,
 }: {
   initialConversationId: string | null;
   initialMessages: ChatMessage[];
@@ -28,6 +29,8 @@ export function ChatShell({
   /** Set when the auto-sent message came from voice, so its answer is spoken by Dr. Paws. */
   autoSendMeta?: TurnMeta;
   avatar: ReturnType<typeof useAvatarSession>;
+  /** Showcase-only: enables the 'How I answered' panel and per-reply reasoning links. */
+  canInspectTraces: boolean;
   /** True while the Dr. Paws stage is open; voice answers are spoken only then. */
   drPawsOn: boolean;
 }) {
@@ -235,15 +238,17 @@ export function ChatShell({
     <div className={styles.layout}>
       <div className={styles.main}>
         <div className={styles.toolbar}>
-          <LinkButton icon={<TransparencyIcon aria-hidden="true" />} onClick={handleTogglePanel}>
-            How I answered
-          </LinkButton>
+          {canInspectTraces && (
+            <LinkButton icon={<TransparencyIcon aria-hidden="true" />} onClick={handleTogglePanel}>
+              How I answered
+            </LinkButton>
+          )}
         </div>
         <MessageList
           messages={messages}
           speakingSentence={drPawsOn ? avatar.activeSentence : null}
           streamingMessageId={streamingMessageId}
-          onViewReasoning={handleViewReasoning}
+          onViewReasoning={canInspectTraces ? handleViewReasoning : undefined}
           onRetry={sending ? undefined : handleRetry}
         />
         {streamingState && streamingState !== "Completed" && <StreamingIndicator state={streamingState} />}
@@ -255,7 +260,7 @@ export function ChatShell({
           disabled={sending}
         />
       </div>
-      {panelOpen && (
+      {canInspectTraces && panelOpen && (
         <div className={styles.panelWrap}>
           {/* Keyed on traceId so switching turns remounts the panel fresh
               (loading state, no stale previous trace) instead of needing

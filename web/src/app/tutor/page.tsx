@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getRoadmapData } from "@/lib/roadmap/get-roadmap-data";
 import { ConceptPicker } from "@/components/tutor/ConceptPicker";
 import { TutorWorkspace } from "@/components/tutor/TutorWorkspace";
+import { checkShowcaseAccess } from "@/lib/showcase/showcase-access";
 import styles from "./page.module.css";
 
 /**
@@ -30,6 +31,7 @@ export default async function TutorPage({
 
   const studentId = data.claims.sub as string;
   const roadmap = await getRoadmapData(supabase, studentId);
+  const canInspectTraces = (await checkShowcaseAccess(supabase)) === "authorized";
 
   const resolvedSearchParams = await searchParams;
   const conceptParam = resolvedSearchParams.concept;
@@ -70,7 +72,12 @@ export default async function TutorPage({
       <h1 className={styles.heading}>AI Tutor</h1>
 
       {activeNode ? (
-        <TutorWorkspace key={activeNode.conceptId} conceptId={activeNode.conceptId} conceptName={activeNode.conceptName} />
+        <TutorWorkspace
+          key={activeNode.conceptId}
+          conceptId={activeNode.conceptId}
+          conceptName={activeNode.conceptName}
+          canInspectTraces={canInspectTraces}
+        />
       ) : (
         <p className={styles.body}>Pick a concept below to get started.</p>
       )}
