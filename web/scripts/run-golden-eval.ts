@@ -17,6 +17,7 @@ import { createPostgresLearnerStateProvider } from "@/lib/learner/postgres-learn
 import { createPostgresLearnerProfileWriter } from "@/lib/learner/postgres-learner-profile-writer";
 import { runTutoringPipeline } from "@/app/api/chat/route";
 import { evaluateGoldenTurn } from "../src/lib/evaluation-lab/golden-turn-evaluation";
+import { createTurnTiming } from "../src/lib/chat/turn-timing";
 import { generateTraceId } from "@/lib/observability/trace";
 import { GOLDEN_EVAL_SET } from "../src/lib/evaluation-lab/golden-eval-set";
 import { execSync } from "node:child_process";
@@ -155,6 +156,7 @@ async function main() {
         learnerStateProvider,
         learnerProfileWriter,
         signal: AbortSignal.timeout(120_000),
+        timing: createTurnTiming(() => Date.now() - startedAt),
       });
 
       const excerpt = pipelineResult.replyContent.slice(0, 300);

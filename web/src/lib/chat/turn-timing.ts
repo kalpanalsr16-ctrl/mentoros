@@ -47,3 +47,72 @@ export function replyTimingFields(input: {
   if (input.firstContentMs !== null) fields.firstContentMs = input.firstContentMs;
   return fields;
 }
+
+/**
+ * Critical-path breakdown (critical-path timing v1). Every segment is a
+ * sequential, awaited span on the learner's path to the saved reply, measured
+ * from the same turn start as wallClockMs. A segment is recorded only when its
+ * work completed: a failed or cancelled span adds nothing, so no timing is
+ * fabricated. Segments never overlap, so `residualMs` is the time not covered
+ * by any segment: synchronous glue and object building, not a hidden stage.
+ */
+export type CriticalPathSegment =
+  | "rateLimitMs"
+  | "conversationMs"
+  | "userInsertMs"
+  | "historyMs"
+  | "safetyMs"
+  | "routerMs"
+  | "planningMs"
+  | "personalizationMs"
+  | "generationMs"
+  | "reflectionMs"
+  | "memoryMs"
+  | "persistMs";
+
+export const CRITICAL_PATH_VERSION = 1;
+
+export function createTurnTiming(elapsedMs: () => number) {
+  const segments = new Map<CriticalPathSegment, number>();
+  let telemetryWriteMs = 0;
+
+  const record = (segment: CriticalPathSegment, startedAt: number) => {
+    segments.set(segment, (segments.get(segment) ?? 0) + (elapsedMs() - startedAt));
+  };
+
+  return {
+    async measure<T>(segment: CriticalPathSegment, work: () => Promise<T>): Promise<T> {
+      const startedAt = elapsedMs();
+      const value = await work();
+      record(segment, startedAt);
+      return value;
+    },
+    measureSync<T>(segment: CriticalPathSegment, work: () => T): T {
+      const startedAt = elapsedMs();
+      const value = work();
+      record(segment, startedAt);
+      return value;
+    },
+    /** Awaited telemetry writes on the learner's path. Reported apart from segments, so they are visible instead of residual. */
+    async telemetry(write: () => Promise<void>): Promise<void> {
+      const startedAt = elapsedMs();
+      await write();
+      telemetryWriteMs += elapsedMs() - startedAt;
+    },
+    /** Payload for reply_sent / safety_reply_sent. Only for a reply that was completed. */
+    criticalPathFields(replyCompletedMs: number): { criticalPath: Record<string, number> } {
+      const path: Record<string, number> = { criticalPathVersion: CRITICAL_PATH_VERSION };
+      let attributed = 0;
+      for (const [segment, ms] of segments) {
+        path[segment] = ms;
+        attributed += ms;
+      }
+      path.telemetryWriteMs = telemetryWriteMs;
+      attributed += telemetryWriteMs;
+      path.residualMs = replyCompletedMs - attributed;
+      return { criticalPath: path };
+    },
+  };
+}
+
+export type TurnTiming = ReturnType<typeof createTurnTiming>;

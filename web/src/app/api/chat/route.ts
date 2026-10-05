@@ -55,8 +55,10 @@ import { scheduleDeferredEvaluation } from "@/lib/evaluation/schedule-deferred-e
 import type { EvaluationRequest } from "@/lib/evaluation/run-evaluation";
 import {
   createFirstContentTracker,
+  createTurnTiming,
   isModelGeneratedReply,
   replyTimingFields,
+  type TurnTiming,
 } from "@/lib/chat/turn-timing";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
@@ -105,12 +107,13 @@ export async function POST(request: Request) {
   // docs/PHASE_E_ARCHITECTURE_PERFORMANCE.md (E1) for the exact boundary.
   const turnStartedAt = Date.now();
   const elapsedMs = () => Date.now() - turnStartedAt;
+  const timing = createTurnTiming(elapsedMs);
 
   // Checked before any other work -- every message now costs a real
   // Claude API call (M1-04), so a student over the limit shouldn't pay
   // for a safety check, a conversation lookup, or a message insert on a
   // request that's about to be rejected anyway.
-  const rateLimitResult = await checkRateLimit(supabase);
+  const rateLimitResult = await timing.measure("rateLimitMs", async () => checkRateLimit(supabase));
   if (rateLimitResult.limited) {
     await logEvent(supabase, {
       traceId,
@@ -124,7 +127,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const demoLimitResult = await checkDemoDailyLimit(supabase, studentId);
+  const demoLimitResult = await timing.measure("rateLimitMs", async () => checkDemoDailyLimit(supabase, studentId));
   if (demoLimitResult.limited) {
     await logEvent(supabase, {
       traceId,
@@ -205,11 +208,9 @@ export async function POST(request: Request) {
     activeConversationId = bodyConversationId ?? "";
 
     if (!activeConversationId) {
-      const { data: conversation, error: conversationError } = await supabase
-        .from("conversations")
-        .insert({ student_id: studentId })
-        .select("id")
-        .single();
+      const { data: conversation, error: conversationError } = await timing.measure("conversationMs", async () =>
+        supabase.from("conversations").insert({ student_id: studentId }).select("id").single(),
+      );
 
       if (conversationError || !conversation) {
         await logEvent(supabase, {
@@ -229,15 +230,17 @@ export async function POST(request: Request) {
     // reviewer must be able to see what was said and how MentorOS
     // responded), even though the reply it gets is a decline, not the
     // usual placeholder.
-    const { data: insertedUserMessage, error: userMessageError } = await supabase
-      .from("messages")
-      .insert({
-        conversation_id: activeConversationId,
-        role: "user",
-        content,
-      })
-      .select("id, role, content, trace_id")
-      .single();
+    const { data: insertedUserMessage, error: userMessageError } = await timing.measure("userInsertMs", async () =>
+      supabase
+        .from("messages")
+        .insert({
+          conversation_id: activeConversationId,
+          role: "user",
+          content,
+        })
+        .select("id, role, content, trace_id")
+        .single(),
+    );
 
     if (userMessageError || !insertedUserMessage) {
       // Most likely cause: activeConversationId doesn't belong to this
@@ -296,6 +299,7 @@ export async function POST(request: Request) {
           learnerStateProvider,
           learnerProfileWriter,
           signal: request.signal,
+          timing,
         });
 
         if (pipelineResult.deferredEvaluation) {
@@ -325,16 +329,18 @@ export async function POST(request: Request) {
         // role: 'assistant' outright) -- this SECURITY DEFINER RPC is the
         // one legitimate path, and re-checks conversation ownership itself
         // since it runs with elevated privilege.
-        const { data: assistantMessage, error: assistantMessageError } = await supabase
-          .rpc("insert_assistant_message", {
-            p_conversation_id: activeConversationId,
-            p_content: pipelineResult.replyContent,
-            // Sprint 3: lets the AI Transparency Panel look up this turn's
-            // trace after a page reload.
-            p_trace_id: traceId,
-          })
-          .returns<MessageRow[]>()
-          .single();
+        const { data: assistantMessage, error: assistantMessageError } = await timing.measure("persistMs", async () =>
+          supabase
+            .rpc("insert_assistant_message", {
+              p_conversation_id: activeConversationId,
+              p_content: pipelineResult.replyContent,
+              // Sprint 3: lets the AI Transparency Panel look up this turn's
+              // trace after a page reload.
+              p_trace_id: traceId,
+            })
+            .returns<MessageRow[]>()
+            .single(),
+        );
 
         if (assistantMessageError || !assistantMessage) {
           await logEvent(supabase, {
@@ -372,6 +378,7 @@ export async function POST(request: Request) {
               evaluationDeferred: pipelineResult.deferredEvaluation !== undefined,
               firstContentMs: firstContent.value(),
             }),
+            ...timing.criticalPathFields(replyCompletedMs),
             ...pipelineResult.llmMetadata,
           },
         });
@@ -475,6 +482,7 @@ export async function runTutoringPipeline(params: {
   learnerStateProvider: ReturnType<typeof createPostgresLearnerStateProvider>;
   learnerProfileWriter: ReturnType<typeof createPostgresLearnerProfileWriter>;
   signal: AbortSignal;
+  timing: TurnTiming;
 }): Promise<PipelineResult> {
   const {
     supabase,
@@ -488,7 +496,10 @@ export async function runTutoringPipeline(params: {
     learnerStateProvider,
     learnerProfileWriter,
     signal,
+    timing,
   } = params;
+
+  const logTimed = (eventParams: Parameters<typeof logEvent>[1]) => timing.telemetry(() => logEvent(supabase, eventParams));
 
   events.state("Thinking");
 
@@ -508,7 +519,7 @@ export async function runTutoringPipeline(params: {
   // -- evaluateSafety() short-circuits before ever touching `history` or
   // `classify` in that case.
   const history = layer1Result.safe
-    ? await buildConversationContext(supabase, activeConversationId)
+    ? await timing.measure("historyMs", async () => buildConversationContext(supabase, activeConversationId))
     : [];
 
   // Safety Agent (M9): the first agent to touch this message, running
@@ -519,7 +530,9 @@ export async function runTutoringPipeline(params: {
   // see safety-agent.ts's doc comment for why this is the one
   // intentional exception to this codebase's fail-open convention.
   const safetyStartedAt = Date.now();
-  const safetyAssessment = await evaluateSafety(history, layer1Result, classifySafetyWithClaude);
+  const safetyAssessment = await timing.measure("safetyMs", async () =>
+    evaluateSafety(history, layer1Result, classifySafetyWithClaude),
+  );
   const safetyLatencyMs = Date.now() - safetyStartedAt;
 
   // model/inputTokens/outputTokens are only present when Layer 2's Claude
@@ -540,7 +553,7 @@ export async function runTutoringPipeline(params: {
         }
       : { latencyMs: safetyLatencyMs };
 
-  await logEvent(supabase, {
+  await logTimed({
     traceId,
     eventName: safetyAssessment.safe ? "message_received" : "safety_blocked",
     studentId,
@@ -587,11 +600,11 @@ export async function runTutoringPipeline(params: {
     // rather than blocking the message, since routing is an enhancement
     // layered on top of M1, not a new hard dependency of the chat route.
     const routerStartedAt = Date.now();
-    const routerResult = await classifyIntent(history, classifyIntentWithClaude);
+    const routerResult = await timing.measure("routerMs", async () => classifyIntent(history, classifyIntentWithClaude));
     const routerLatencyMs = Date.now() - routerStartedAt;
 
     if (routerResult.success) {
-      await logEvent(supabase, {
+      await logTimed({
         traceId,
         eventName: "intent_detected",
         studentId,
@@ -611,7 +624,7 @@ export async function runTutoringPipeline(params: {
         },
       });
     } else {
-      await logEvent(supabase, {
+      await logTimed({
         traceId,
         eventName: "routing_failed",
         studentId,
@@ -646,16 +659,20 @@ export async function runTutoringPipeline(params: {
       if (routerResult.success) {
         const planningStartedAt = Date.now();
         try {
-          planningContext = await buildPlanningContext(
-            routerResult.intent,
-            studentId,
-            learnerStateProvider,
-            knowledgeProvider,
-            conceptSearchProvider,
-          );
-          plan = decidePlan(planningContext);
+          const planning = await timing.measure("planningMs", async () => {
+            const context = await buildPlanningContext(
+              routerResult.intent,
+              studentId,
+              learnerStateProvider,
+              knowledgeProvider,
+              conceptSearchProvider,
+            );
+            return { context, plan: decidePlan(context) };
+          });
+          planningContext = planning.context;
+          plan = planning.plan;
 
-          await logEvent(supabase, {
+          await logTimed({
             traceId,
             eventName: "learning_plan_created",
             studentId,
@@ -672,10 +689,15 @@ export async function runTutoringPipeline(params: {
             },
           });
 
-          profile = decidePersonalization({ planningContext, plan });
-          teachingGuidance = describePersonalizationForPrompt(profile);
+          const personalizationInput = { planningContext, plan };
+          const personalized = timing.measureSync("personalizationMs", () => {
+            const decided = decidePersonalization(personalizationInput);
+            return { decided, guidance: describePersonalizationForPrompt(decided) };
+          });
+          profile = personalized.decided;
+          teachingGuidance = personalized.guidance;
 
-          await logEvent(supabase, {
+          await logTimed({
             traceId,
             eventName: "personalization_profile_created",
             studentId,
@@ -690,7 +712,7 @@ export async function runTutoringPipeline(params: {
             },
           });
         } catch (err) {
-          await logEvent(supabase, {
+          await logTimed({
             traceId,
             eventName: "planning_failed",
             studentId,
@@ -734,7 +756,9 @@ export async function runTutoringPipeline(params: {
           personalizationProfile: profile,
           history,
         };
-        practiceResult = await createPracticeSet(practiceAgentContext, generatePracticeSet);
+        practiceResult = await timing.measure("generationMs", async () =>
+          createPracticeSet(practiceAgentContext, generatePracticeSet),
+        );
       }
 
       // Assessment Agent (M7): same Router-intent gate as Practice, not
@@ -758,7 +782,9 @@ export async function runTutoringPipeline(params: {
           personalizationProfile: profile,
           history,
         };
-        assessmentResult = await evaluateResponse(assessmentAgentContext, generateAssessment);
+        assessmentResult = await timing.measure("generationMs", async () =>
+          evaluateResponse(assessmentAgentContext, generateAssessment),
+        );
       }
 
       // Concept Agent (M6): only when this turn wasn't already claimed by
@@ -785,13 +811,15 @@ export async function runTutoringPipeline(params: {
           personalizationProfile: profile,
           history,
         };
-        conceptResult = await explainConcept(conceptAgentContext, generateConceptExplanation);
+        conceptResult = await timing.measure("generationMs", async () =>
+          explainConcept(conceptAgentContext, generateConceptExplanation),
+        );
       }
 
       const llmLatencyMs = Date.now() - llmStartedAt;
 
       if (practiceResult?.success) {
-        await logEvent(supabase, {
+        await logTimed({
           traceId,
           eventName: "practice_generated",
           studentId,
@@ -829,7 +857,7 @@ export async function runTutoringPipeline(params: {
           history,
         });
       } else if (assessmentResult?.success) {
-        await logEvent(supabase, {
+        await logTimed({
           traceId,
           eventName: "assessment_completed",
           studentId,
@@ -888,11 +916,13 @@ export async function runTutoringPipeline(params: {
             history,
           };
           const reflectionStartedAt = Date.now();
-          const reflectionResult = await reflectOnSession(reflectionAgentContext, generateReflection);
+          const reflectionResult = await timing.measure("reflectionMs", async () =>
+            reflectOnSession(reflectionAgentContext, generateReflection),
+          );
           const reflectionLatencyMs = Date.now() - reflectionStartedAt;
 
           if (reflectionResult.success) {
-            await logEvent(supabase, {
+            await logTimed({
               traceId,
               eventName: "reflection_completed",
               studentId,
@@ -912,7 +942,7 @@ export async function runTutoringPipeline(params: {
               },
             });
           } else {
-            await logEvent(supabase, {
+            await logTimed({
               traceId,
               eventName: "reflection_failed",
               studentId,
@@ -929,10 +959,12 @@ export async function runTutoringPipeline(params: {
             assessmentReport: assessmentResult.response,
             reflectionReport: reflectionResult.success ? reflectionResult.response : null,
           };
-          const memoryResult = await updateLearnerProfile(memoryAgentContext, learnerProfileWriter);
+          const memoryResult = await timing.measure("memoryMs", async () =>
+            updateLearnerProfile(memoryAgentContext, learnerProfileWriter),
+          );
 
           if (memoryResult.applied && memoryResult.evidence) {
-            await logEvent(supabase, {
+            await logTimed({
               traceId,
               eventName: "learner_profile_updated",
               studentId,
@@ -956,7 +988,7 @@ export async function runTutoringPipeline(params: {
             };
           }
         } catch (err) {
-          await logEvent(supabase, {
+          await logTimed({
             traceId,
             eventName: "memory_update_failed",
             studentId,
@@ -965,7 +997,7 @@ export async function runTutoringPipeline(params: {
           });
         }
       } else if (conceptResult?.success) {
-        await logEvent(supabase, {
+        await logTimed({
           traceId,
           eventName: "concept_explained",
           studentId,
@@ -1003,7 +1035,7 @@ export async function runTutoringPipeline(params: {
         // to the student. At most one of these three is ever attempted
         // per turn, by construction above.
         if (practiceResult && !practiceResult.success) {
-          await logEvent(supabase, {
+          await logTimed({
             traceId,
             eventName: "practice_generation_failed",
             studentId,
@@ -1012,7 +1044,7 @@ export async function runTutoringPipeline(params: {
           });
         }
         if (assessmentResult && !assessmentResult.success) {
-          await logEvent(supabase, {
+          await logTimed({
             traceId,
             eventName: "assessment_failed",
             studentId,
@@ -1021,7 +1053,7 @@ export async function runTutoringPipeline(params: {
           });
         }
         if (conceptResult && !conceptResult.success) {
-          await logEvent(supabase, {
+          await logTimed({
             traceId,
             eventName: "concept_explanation_failed",
             studentId,
@@ -1035,18 +1067,15 @@ export async function runTutoringPipeline(params: {
         // `events.chunk`, and `signal` (request.signal, forwarded from
         // POST) lets a client-side Cancel actually stop the upstream
         // Anthropic call, not just stop rendering it.
-        const llmResult = await generateTeachingReplyStreaming(
-          history,
-          teachingGuidance,
-          (delta) => events.chunk(delta),
-          signal,
+        const llmResult = await timing.measure("generationMs", async () =>
+          generateTeachingReplyStreaming(history, teachingGuidance, (delta) => events.chunk(delta), signal),
         );
 
         // Logged immediately, separate from the reply_sent/reply_failed events
         // below -- this is observability into the new external dependency
         // itself (did Claude answer, how long did it take), not into whether
         // the resulting text made it into the database.
-        await logEvent(supabase, {
+        await logTimed({
           traceId,
           eventName: llmResult.success ? "llm_call_succeeded" : "llm_call_failed",
           studentId,
