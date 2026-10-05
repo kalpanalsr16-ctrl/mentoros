@@ -1,8 +1,7 @@
-import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateTraceId, logEvent } from "@/lib/observability/trace";
 import { checkMessageSafety, buildSafetyDeclineMessage } from "@/lib/safety/filter";
-import { buildConversationContext, type ClaudeMessage } from "@/lib/agents/context-agent";
+import { buildConversationContext } from "@/lib/agents/context-agent";
 import {
   generateTeachingReplyStreaming,
   classifyIntentWithClaude,
@@ -11,18 +10,12 @@ import {
   generatePracticeSet,
   generateAssessment,
   generateReflection,
-  generateEvaluation,
   estimateCostUsd,
   type ConceptAgentResult,
   type PracticeAgentResult,
   type AssessmentAgentResult,
 } from "@/lib/llm/client";
 import { evaluateSafety } from "@/lib/agents/safety-agent";
-import {
-  evaluateInteraction,
-  type EvaluationAgentContext,
-  type EvaluationSourceAgent,
-} from "@/lib/agents/evaluation-agent";
 import { checkRateLimit, checkDemoDailyLimit } from "@/lib/security/rate-limit";
 import { classifyIntent } from "@/lib/agents/router-agent";
 import { buildPlanningContext, decidePlan, type LearningPlan } from "@/lib/agents/planning-agent";
@@ -56,9 +49,10 @@ import { createPostgresLearnerProfileWriter } from "@/lib/learner/postgres-learn
 import { createPostgresKnowledgeProvider } from "@/lib/knowledge/postgres-knowledge-provider";
 import { createTrigramConceptSearchProvider } from "@/lib/knowledge/trigram-concept-search-provider";
 import type { PlanningContext } from "@/lib/agents/planning-context";
-import type { Concept } from "@/lib/knowledge/curriculum-types";
 import type { ReplyKind, MasteryUpdatePayload, MessageRow } from "@/lib/chat/types";
 import { createStreamingEventBuilder, type StreamingEventBuilder } from "@/lib/chat/streaming-event-builder";
+import { scheduleDeferredEvaluation } from "@/lib/evaluation/schedule-deferred-evaluation";
+import type { EvaluationRequest } from "@/lib/evaluation/run-evaluation";
 import {
   createFirstContentTracker,
   isModelGeneratedReply,
@@ -306,7 +300,7 @@ export async function POST(request: Request) {
 
         if (pipelineResult.deferredEvaluation) {
           const evaluation = pipelineResult.deferredEvaluation;
-          after(() => runEvaluationAgent(supabase, evaluation));
+          scheduleDeferredEvaluation(supabase, evaluation);
         }
 
         if (pipelineResult.cancelled) {
@@ -456,7 +450,6 @@ type PipelineResult = {
   deferredEvaluation?: EvaluationRequest;
 };
 
-type EvaluationRequest = Parameters<typeof runEvaluationAgent>[1];
 
 /**
  * The full Safety -> Router -> Planning -> Concept/Practice/Assessment ->
@@ -1105,121 +1098,4 @@ export async function runTutoringPipeline(params: {
     masteryUpdatePayload,
     deferredEvaluation,
   };
-}
-
-/**
- * Evaluation Agent (M9): runs after Concept, Practice, or Assessment
- * Agent each succeed -- broader trigger coverage than M8's Reflection
- * (which only hooks Assessment), matching 13_Evaluation_Agent.md's own
- * Events Consumed and its "100% of learner interactions" coverage
- * target. Internal only -- never changes replyContent, which is already
- * decided by the caller before this runs. Wrapped in its own try/catch,
- * separate from any Reflection/Memory try/catch on the same turn, so an
- * Evaluation failure never affects them or the reply -- per
- * 13_Evaluation_Agent.md's own Retry Strategy: "Evaluation should never
- * block learner interactions."
- */
-async function runEvaluationAgent(
-  supabase: SupabaseServerClient,
-  params: {
-    traceId: string;
-    studentId: string;
-    conversationId: string;
-    sourceAgent: EvaluationSourceAgent;
-    responseText: string;
-    concept: Concept | null;
-    personalizationProfile: PersonalizationProfile;
-    latencyMs: number;
-    history: ClaudeMessage[];
-  },
-): Promise<void> {
-  try {
-    const evaluationContext: EvaluationAgentContext = {
-      sourceAgent: params.sourceAgent,
-      responseText: params.responseText,
-      concept: params.concept,
-      personalizationProfile: params.personalizationProfile,
-      latencyMs: params.latencyMs,
-      history: params.history,
-    };
-    const evaluationStartedAt = Date.now();
-    const evaluationResult = await evaluateInteraction(evaluationContext, generateEvaluation);
-    const evaluationLatencyMs = Date.now() - evaluationStartedAt;
-
-    if (!evaluationResult.success) {
-      await logEvent(supabase, {
-        traceId: params.traceId,
-        eventName: "evaluation_failed",
-        studentId: params.studentId,
-        conversationId: params.conversationId,
-        payload: {
-          sourceAgent: params.sourceAgent,
-          reason: evaluationResult.reason,
-          evaluationLatencyMs,
-        },
-      });
-      return;
-    }
-
-    const { response } = evaluationResult;
-
-    await logEvent(supabase, {
-      traceId: params.traceId,
-      eventName: "evaluation_completed",
-      studentId: params.studentId,
-      conversationId: params.conversationId,
-      payload: {
-        sourceAgent: params.sourceAgent,
-        model: evaluationResult.model,
-        overallScore: response.overallScore,
-        qualityStatus: response.qualityStatus,
-        groundedness: response.groundedness,
-        accuracy: response.accuracy,
-        educationalQuality: response.educationalQuality,
-        personalization: response.personalization,
-        clarity: response.clarity,
-        safety: response.safety,
-        hallucinationRisk: response.hallucinationRisk,
-        // Evaluation's OWN call metadata -- distinct from `params.latencyMs`
-        // above, which is the *source* agent's (Concept/Practice/
-        // Assessment) latency that Evaluation's efficiency score is
-        // computed from, not Evaluation's own cost to run.
-        evaluationInputTokens: evaluationResult.inputTokens,
-        evaluationOutputTokens: evaluationResult.outputTokens,
-        evaluationCostUsd: estimateCostUsd(evaluationResult.inputTokens, evaluationResult.outputTokens),
-        evaluationLatencyMs,
-      },
-    });
-
-    if (response.qualityStatus === "NeedsImprovement") {
-      await logEvent(supabase, {
-        traceId: params.traceId,
-        eventName: "low_quality_detected",
-        studentId: params.studentId,
-        conversationId: params.conversationId,
-        payload: { sourceAgent: params.sourceAgent, overallScore: response.overallScore },
-      });
-    }
-
-    if (response.hallucinationRisk === "High") {
-      await logEvent(supabase, {
-        traceId: params.traceId,
-        eventName: "hallucination_detected",
-        studentId: params.studentId,
-        conversationId: params.conversationId,
-        payload: { sourceAgent: params.sourceAgent, groundedness: response.groundedness },
-      });
-    }
-  } catch (err) {
-    await logEvent(supabase, {
-      traceId: params.traceId,
-      eventName: "evaluation_failed",
-      studentId: params.studentId,
-      conversationId: params.conversationId,
-      payload: {
-        sourceAgent: params.sourceAgent,
-        reason: err instanceof Error ? err.message : "unknown_error",
-      },
-    });
-  }
 }

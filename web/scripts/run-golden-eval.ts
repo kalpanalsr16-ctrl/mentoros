@@ -16,6 +16,7 @@ import { createTrigramConceptSearchProvider } from "@/lib/knowledge/trigram-conc
 import { createPostgresLearnerStateProvider } from "@/lib/learner/postgres-learner-state-provider";
 import { createPostgresLearnerProfileWriter } from "@/lib/learner/postgres-learner-profile-writer";
 import { runTutoringPipeline } from "@/app/api/chat/route";
+import { evaluateGoldenTurn } from "../src/lib/evaluation-lab/golden-turn-evaluation";
 import { generateTraceId } from "@/lib/observability/trace";
 import { GOLDEN_EVAL_SET } from "../src/lib/evaluation-lab/golden-eval-set";
 import { execSync } from "node:child_process";
@@ -49,15 +50,6 @@ function createDiscardingEventsSink() {
   })().catch(() => {});
   return createStreamingEventBuilder(controllerRef);
 }
-
-type EvaluationCompletedPayload = {
-  sourceAgent: string;
-  overallScore: number;
-  groundedness: number | null;
-  accuracy: number;
-  safety: number;
-  hallucinationRisk: string | null;
-};
 
 async function markItem(runId: string, goldenId: string, fields: Record<string, unknown>) {
   const { error } = await supabase
@@ -165,31 +157,37 @@ async function main() {
         signal: AbortSignal.timeout(120_000),
       });
 
-      const latencyMs = Date.now() - startedAt;
       const excerpt = pipelineResult.replyContent.slice(0, 300);
+      const evaluation = await evaluateGoldenTurn(supabase, pipelineResult.deferredEvaluation);
+      const latencyMs = Date.now() - startedAt;
 
-      const { data: evalEvent } = await supabase
-        .from("events")
-        .select("payload")
-        .eq("trace_id", traceId)
-        .eq("event_name", "evaluation_completed")
-        .maybeSingle();
-
-      if (!evalEvent) {
+      if (evaluation.kind === "not_evaluated") {
         await markItem(runId, golden.id, {
           status: "error",
           trace_id: traceId,
           latency_ms: latencyMs,
           response_excerpt: excerpt,
           error_message: pipelineResult.safe
-            ? "No evaluation_completed event was logged for this trace."
+            ? "No Evaluation applies to this turn (no Concept, Practice, or Assessment reply)."
             : "Message was safety-blocked -- no evaluation ran.",
         });
-        console.log(`  -> error (no evaluation event)`);
+        console.log(`  -> error (no evaluation applies)`);
         continue;
       }
 
-      const payload = evalEvent.payload as EvaluationCompletedPayload;
+      if (evaluation.kind === "evaluation_error") {
+        await markItem(runId, golden.id, {
+          status: "error",
+          trace_id: traceId,
+          latency_ms: latencyMs,
+          response_excerpt: excerpt,
+          error_message: `Evaluation did not complete: ${evaluation.reason}`,
+        });
+        console.log(`  -> ERROR: evaluation did not complete`);
+        continue;
+      }
+
+      const payload = evaluation.payload;
       const threshold = golden.minOverallScore ?? 70;
       const pass = payload.overallScore >= threshold;
 
