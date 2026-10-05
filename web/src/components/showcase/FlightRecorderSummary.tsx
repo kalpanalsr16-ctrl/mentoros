@@ -6,6 +6,13 @@ import styles from "./FlightRecorderSummary.module.css";
 
 const NOT_REPORTED = "Not reported";
 
+const OUTCOME_LABEL = {
+  completed: "Completed",
+  errored: "Errored",
+  cancelled: "Cancelled by student",
+  unknown: "Not instrumented",
+} as const;
+
 function ms(value: number | null): string {
   return value === null ? NOT_REPORTED : formatLatencyMs(value);
 }
@@ -13,7 +20,7 @@ function ms(value: number | null): string {
 /** Concept, stage-duration timeline, and voice path for one trace, above the per-agent cards. */
 export function FlightRecorderSummary({ view }: { view: TraceView }) {
   const { segments, unmeasured } = timelineSegments(view.nodes);
-  const { concept, totalLatencyMs, totalCostUsd } = view.summary;
+  const { concept, stageLatencySumMs, wallClockMs, outcome, totalCostUsd } = view.summary;
 
   return (
     <div className={styles.summary}>
@@ -31,10 +38,20 @@ export function FlightRecorderSummary({ view }: { view: TraceView }) {
       </div>
 
       <div className={styles.row}>
-        <span className={styles.label}>Total</span>
+        <span className={styles.label}>Wall clock</span>
         <span>
-          {ms(totalLatencyMs)} · {formatCostUsd(totalCostUsd)}
+          {ms(wallClockMs)} · {formatCostUsd(totalCostUsd)}
         </span>
+      </div>
+
+      <div className={styles.row}>
+        <span className={styles.label}>Stage sum</span>
+        <span>{ms(stageLatencySumMs)}</span>
+      </div>
+
+      <div className={styles.row}>
+        <span className={styles.label}>Outcome</span>
+        <span>{OUTCOME_LABEL[outcome]}</span>
       </div>
 
       {segments.length > 0 && (

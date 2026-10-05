@@ -100,6 +100,11 @@ export async function POST(request: Request) {
   }
 
   const studentId = claimsData.claims.sub as string;
+  // Turn wall-clock starts here (after authentication) and ends at the moment
+  // the reply is persisted, or the turn is cancelled or errored. See
+  // docs/PHASE_E_ARCHITECTURE_PERFORMANCE.md (E1) for the exact boundary.
+  const turnStartedAt = Date.now();
+  const elapsedMs = () => Date.now() - turnStartedAt;
 
   // Checked before any other work -- every message now costs a real
   // Claude API call (M1-04), so a student over the limit shouldn't pay
@@ -292,6 +297,13 @@ export async function POST(request: Request) {
           // sent. Persisting a fallback message here would resurface on the
           // next page load as if the system had failed, misrepresenting a
           // voluntary Cancel as an error.
+          await logEvent(supabase, {
+            traceId,
+            eventName: "turn_cancelled",
+            studentId,
+            conversationId: activeConversationId,
+            payload: { wallClockMs: elapsedMs() },
+          });
           return;
         }
 
@@ -320,12 +332,14 @@ export async function POST(request: Request) {
             payload: {
               reason: "assistant_message_save_failed",
               userMessageId: userMessage.id,
+              wallClockMs: elapsedMs(),
             },
           });
           events.error("Could not save the reply.");
           return;
         }
 
+        const wallClockMs = elapsedMs();
         await logEvent(supabase, {
           traceId,
           eventName: pipelineResult.safe ? "reply_sent" : "safety_reply_sent",
@@ -337,6 +351,7 @@ export async function POST(request: Request) {
             modality,
             ...(voiceTraceId ? { voiceTraceId } : {}),
             ...(source ? { source } : {}),
+            wallClockMs,
             ...pipelineResult.llmMetadata,
           },
         });
@@ -358,6 +373,23 @@ export async function POST(request: Request) {
           ...(pipelineResult.masteryUpdatePayload ? { masteryUpdate: pipelineResult.masteryUpdatePayload } : {}),
         });
       } catch (err) {
+        if (request.signal.aborted) {
+          await logEvent(supabase, {
+            traceId,
+            eventName: "turn_cancelled",
+            studentId,
+            conversationId: activeConversationId,
+            payload: { wallClockMs: elapsedMs() },
+          });
+        } else {
+          await logEvent(supabase, {
+            traceId,
+            eventName: "reply_failed",
+            studentId,
+            conversationId: activeConversationId,
+            payload: { reason: "pipeline_exception", wallClockMs: elapsedMs() },
+          });
+        }
         events.error(err instanceof Error ? err.message : "Something went wrong. Please try again.");
       } finally {
         events.close();
@@ -585,6 +617,7 @@ export async function runTutoringPipeline(params: {
       let plan: LearningPlan | undefined;
       let profile: PersonalizationProfile | undefined;
       if (routerResult.success) {
+        const planningStartedAt = Date.now();
         try {
           planningContext = await buildPlanningContext(
             routerResult.intent,
@@ -608,6 +641,7 @@ export async function runTutoringPipeline(params: {
               conceptResolved: planningContext.concept !== null,
               conceptId: planningContext.concept?.id ?? null,
               conceptName: planningContext.concept?.name ?? null,
+              latencyMs: Date.now() - planningStartedAt,
             },
           });
 
@@ -636,6 +670,7 @@ export async function runTutoringPipeline(params: {
             conversationId: activeConversationId,
             payload: {
               reason: err instanceof Error ? err.message : "unknown_error",
+              latencyMs: Date.now() - planningStartedAt,
             },
           });
         }

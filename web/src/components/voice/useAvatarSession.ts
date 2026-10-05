@@ -147,7 +147,11 @@ export function useAvatarSession() {
               const now = Date.now();
               turn.speechStartedAt = now;
               turn.firstAudioAt = now;
-              void reportVoiceEvent("avatar_speaking_started");
+              void reportVoiceEvent("avatar_speaking_started", {
+                voiceTraceId: turn.timing.voiceTraceId,
+                conversationId: sessionRef.current?.conversationId ?? null,
+                inferenceId: turn.inferenceId,
+              });
               maybeReport();
               if (!highlightTimerRef.current) {
                 highlightTimerRef.current = setInterval(() => {

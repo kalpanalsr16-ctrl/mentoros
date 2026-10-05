@@ -1,10 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { generateTraceId, logEvent } from "@/lib/observability/trace";
+import { sanitizePayload } from "@/lib/voice/voice-event-payload";
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const MAX_LATENCY_MS = 10 * 60 * 1000;
-const AVATAR_STATUSES = ["spoke", "not_spoken", "unavailable", "failed"];
-const FAILURE_STAGES = ["join", "speak"];
 
 /**
  * Lifecycle events only the browser can observe. Each event is whitelisted
@@ -30,41 +27,4 @@ export async function POST(request: Request) {
 
   await logEvent(supabase, { traceId, eventName, studentId, payload });
   return Response.json({ ok: true });
-}
-
-function sanitizePayload(eventName: string, raw: unknown): Record<string, unknown> | null {
-  const input = (raw ?? {}) as Record<string, unknown>;
-
-  switch (eventName) {
-    case "voice_recording_started":
-    case "avatar_speaking_started":
-      return {};
-    case "avatar_failed":
-      return FAILURE_STAGES.includes(input.stage as string) ? { stage: input.stage } : null;
-    case "voice_turn_timing": {
-      if (!AVATAR_STATUSES.includes(input.avatarStatus as string)) return null;
-      const voiceTraceId =
-        typeof input.voiceTraceId === "string" && UUID_PATTERN.test(input.voiceTraceId) ? input.voiceTraceId : null;
-      const payload: Record<string, unknown> = {
-        voiceTraceId,
-        avatarStatus: input.avatarStatus,
-        questionEndToTranscriptMs: latency(input.questionEndToTranscriptMs),
-        transcriptToReplyMs: latency(input.transcriptToReplyMs),
-      };
-      if (input.replyToAvatarAudioMs !== undefined) payload.replyToAvatarAudioMs = latency(input.replyToAvatarAudioMs);
-      if (input.replyStartToAvatarAudioMs !== undefined) {
-        payload.replyStartToAvatarAudioMs = latency(input.replyStartToAvatarAudioMs);
-      }
-      if (input.totalMs !== undefined) payload.totalMs = latency(input.totalMs);
-      return payload;
-    }
-    default:
-      return null;
-  }
-}
-
-function latency(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= MAX_LATENCY_MS
-    ? Math.round(value)
-    : null;
 }

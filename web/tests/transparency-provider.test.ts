@@ -81,7 +81,7 @@ test("a successful concept turn orders nodes in pipeline order and derives Knowl
   assert.equal(evaluation.raw.clarity, 91);
 
   assert.equal(view!.summary.errorCount, 0);
-  assert.equal(view!.summary.totalLatencyMs, 200 + 600 + 180);
+  assert.equal(view!.summary.stageLatencySumMs, 200 + 600 + 180);
   assert.equal(view!.summary.totalInputTokens, 500 + 100);
 });
 

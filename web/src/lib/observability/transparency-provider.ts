@@ -67,10 +67,20 @@ export type VoiceStageView = {
   } | null;
 };
 
+/**
+ * How the turn ended, from the terminal event it wrote. `unknown` for traces
+ * with no terminal event (written before E1, or an interrupted write).
+ */
+export type TraceOutcome = "completed" | "errored" | "cancelled" | "unknown";
+
 export type TraceSummary = {
   traceId: string;
   conversationId: string | null;
-  totalLatencyMs: number | null;
+  /** Sum of the measured stage latencies. Not elapsed time; see wallClockMs. */
+  stageLatencySumMs: number | null;
+  /** Real elapsed time of the turn, from the server-side turn start to its terminal event. Null when not instrumented. */
+  wallClockMs: number | null;
+  outcome: TraceOutcome;
   totalInputTokens: number;
   totalOutputTokens: number;
   totalCostUsd: number;
@@ -168,7 +178,7 @@ function planningNode(e: EventRow): AgentNodeView {
     // Deterministic decision logic, not a Claude call -- no model/tokens/cost,
     // same honesty rule 07_AI_Transparency_Panel.md states for Planning/Memory.
     headline: failed ? "Failed" : String(e.payload.strategy ?? "Unknown"),
-    latencyMs: null,
+    latencyMs: num(e.payload, "latencyMs") ?? null,
     details: failed
       ? compact([detail("Reason", e.payload.reason)])
       : compact([
@@ -330,6 +340,30 @@ function evaluationNode(e: EventRow): AgentNodeView {
   };
 }
 
+const TERMINAL_OUTCOME_EVENTS: Record<string, TraceOutcome> = {
+  reply_sent: "completed",
+  safety_reply_sent: "completed",
+  reply_failed: "errored",
+  turn_cancelled: "cancelled",
+};
+
+/** Outcome from the terminal event. Cancellation is its own outcome, never an error. */
+export function traceOutcome(events: EventRow[]): TraceOutcome {
+  for (const e of events) {
+    const outcome = TERMINAL_OUTCOME_EVENTS[e.event_name];
+    if (outcome) return outcome;
+  }
+  return "unknown";
+}
+
+/** Wall-clock from the terminal event, if that event was instrumented. Older traces return null. */
+export function terminalWallClockMs(events: EventRow[]): number | null {
+  for (const e of events) {
+    if (TERMINAL_OUTCOME_EVENTS[e.event_name]) return num(e.payload, "wallClockMs") ?? null;
+  }
+  return null;
+}
+
 /**
  * Pure aggregation over raw event rows -- no Supabase dependency, directly
  * unit-testable (mirrors observability-agent.ts's buildObservabilityReport
@@ -442,7 +476,7 @@ export function buildTraceView(traceId: string, events: EventRow[], voiceEvents:
   if (evaluation) nodes.push(evaluationNode(evaluation));
 
   const latencies = nodes.map((n) => n.latencyMs).filter((l): l is number => l !== null);
-  const totalLatencyMs = latencies.length > 0 ? latencies.reduce((sum, l) => sum + l, 0) : null;
+  const stageLatencySumMs = latencies.length > 0 ? latencies.reduce((sum, l) => sum + l, 0) : null;
   const totalInputTokens = nodes.reduce((sum, n) => sum + (n.inputTokens ?? 0), 0);
   const totalOutputTokens = nodes.reduce((sum, n) => sum + (n.outputTokens ?? 0), 0);
   const totalCostUsd = nodes.reduce((sum, n) => sum + (n.costUsd ?? 0), 0);
@@ -454,7 +488,9 @@ export function buildTraceView(traceId: string, events: EventRow[], voiceEvents:
     summary: {
       traceId,
       conversationId: events[0]?.conversation_id ?? null,
-      totalLatencyMs,
+      stageLatencySumMs,
+      wallClockMs: terminalWallClockMs(events),
+      outcome: traceOutcome(events),
       totalInputTokens,
       totalOutputTokens,
       totalCostUsd,

@@ -59,7 +59,11 @@ export function TransparencyPanel({ traceId, onClose }: TransparencyPanelProps) 
           <p className={styles.title}>How I answered</p>
           {traceView && (
             <p className={styles.summaryLine}>
-              {traceView.summary.totalLatencyMs !== null ? `${(traceView.summary.totalLatencyMs / 1000).toFixed(1)}s` : "—"}
+              {traceView.summary.wallClockMs !== null
+                ? `${(traceView.summary.wallClockMs / 1000).toFixed(1)}s wall clock`
+                : traceView.summary.stageLatencySumMs !== null
+                  ? `${(traceView.summary.stageLatencySumMs / 1000).toFixed(1)}s stage sum`
+                  : "—"}
               {" · "}
               {formatCostUsd(traceView.summary.totalCostUsd)}
               {" · "}
