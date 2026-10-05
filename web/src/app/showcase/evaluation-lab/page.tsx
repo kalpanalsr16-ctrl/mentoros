@@ -2,28 +2,23 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getEvaluationLab } from "@/lib/evaluation-lab/get-evaluation-lab";
 import { GOLDEN_EVAL_SET } from "@/lib/evaluation-lab/golden-eval-set";
-import type {
-  LabCase,
-  LabRunRow,
-  MeanWithSample,
-  OutcomeCounts,
-  RoutingResult,
-} from "@/lib/evaluation-lab/evaluation-lab-aggregation";
+import {
+  formatUtc,
+  qualityOutcomeLabel,
+  routingOutcomeLabel,
+  runStatusLabel,
+  type OutcomeLabel,
+} from "@/lib/evaluation-lab/evaluation-lab-presentation";
+import type { LabCase, LabRunRow, MeanWithSample, OutcomeCounts } from "@/lib/evaluation-lab/evaluation-lab-aggregation";
 import { Badge, type BadgeVariant } from "@/design-system/primitives/Badge";
 import { Card } from "@/design-system/primitives/Card";
 import styles from "./page.module.css";
 
-const ROUTING_LABEL: Record<RoutingResult, string> = {
-  pass: "Passed",
-  fail: "Failed",
-  errored: "Errored",
-  not_run: "Not run",
-};
-const ROUTING_VARIANT: Record<RoutingResult, BadgeVariant> = {
-  pass: "success",
-  fail: "danger",
-  errored: "warning",
-  not_run: "neutral",
+const OUTCOME_VARIANT: Record<OutcomeLabel, BadgeVariant> = {
+  Passed: "success",
+  Failed: "danger",
+  Errored: "warning",
+  "Not run": "neutral",
 };
 
 const METHOD_LABEL = {
@@ -46,9 +41,6 @@ function score(mean: MeanWithSample): string {
   return mean.mean === null ? "Not scored" : `${mean.mean.toFixed(1)}`;
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
 
 function versionText(run: LabRunRow): string {
   return run.versionLabel ? run.versionLabel : "Legacy run · version not recorded";
@@ -101,13 +93,18 @@ export default async function EvaluationLabPage({
           </li>
           <li>
             <strong>{METHOD_LABEL.judge}</strong> Quality scores from the Evaluation Agent. A model grades the reply, so
-            these are judgements, not ground truth.
+            these are judgements, not ground truth. They can vary between runs, so read them alongside the deterministic
+            checks, the sample size shown, and repeated benchmarks.
           </li>
           <li>
             <strong>{METHOD_LABEL.uninstrumented}</strong> Dimensions MentorOS does not record per case yet. These are
             shown as gaps, not estimated.
           </li>
         </ul>
+        <p className={styles.note}>
+          Routing and response quality are evaluated independently. A response may meet the quality threshold even when
+          MentorOS selected a different agent than the human-authored expected route.
+        </p>
         <details className={styles.definitions}>
           <summary>What Passed, Failed, Errored and Not run mean</summary>
           <dl>
@@ -120,6 +117,7 @@ export default async function EvaluationLabPage({
             <dt>Not run</dt>
             <dd>No execution result exists: the case never finished, or it is not in the current golden set.</dd>
           </dl>
+          <p>All timestamps are shown in UTC.</p>
         </details>
       </section>
 
@@ -150,7 +148,7 @@ export default async function EvaluationLabPage({
                   >
                     <span className={styles.runLabel}>{r.label}</span>
                     <span className={styles.muted}>
-                      {formatDate(r.startedAt)} · {versionText(r)} · {modelText(r)} · {r.isPublic ? "Public" : "Private"}
+                      {formatUtc(r.startedAt)} · {versionText(r)} · {modelText(r)} · {r.isPublic ? "Public" : "Private"}
                     </span>
                   </Link>
                 </li>
@@ -167,7 +165,7 @@ export default async function EvaluationLabPage({
             </h2>
             <p className={styles.muted}>
               {lab.summary.caseCount} golden cases · {versionText(lab.selectedRun)} · {modelText(lab.selectedRun)} ·{" "}
-              {lab.selectedRun.status}
+              {runStatusLabel(lab.selectedRun.status)}
             </p>
 
             <div className={styles.metrics}>
@@ -243,7 +241,9 @@ export default async function EvaluationLabPage({
                   <details className={styles.case}>
                     <summary className={styles.caseSummary}>
                       <span className={styles.caseQuestion}>{c.question}</span>
-                      <Badge variant={ROUTING_VARIANT[c.routing]}>Routing: {ROUTING_LABEL[c.routing]}</Badge>
+                      <Badge variant={OUTCOME_VARIANT[routingOutcomeLabel(c.routing)]}>
+                        Routing: {routingOutcomeLabel(c.routing)}
+                      </Badge>
                     </summary>
                     <dl className={styles.facts}>
                       <dt>Student input</dt>
@@ -253,9 +253,9 @@ export default async function EvaluationLabPage({
                       <dt>Actual route ({METHOD_LABEL.deterministic})</dt>
                       <dd>{actualText(c.actualAgent)}</dd>
                       <dt>Routing result</dt>
-                      <dd>{ROUTING_LABEL[c.routing]}</dd>
-                      <dt>Run status</dt>
-                      <dd>{c.status}</dd>
+                      <dd>{routingOutcomeLabel(c.routing)}</dd>
+                      <dt>Quality result</dt>
+                      <dd>{qualityOutcomeLabel(c.status)}</dd>
                       <dt>Overall score ({METHOD_LABEL.judge})</dt>
                       <dd>{c.judge.overall === null ? "Not scored" : `${c.judge.overall} · threshold ${c.minOverallScore ?? 70}`}</dd>
                       <dt>Groundedness / accuracy / safety ({METHOD_LABEL.judge})</dt>

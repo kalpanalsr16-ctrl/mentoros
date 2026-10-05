@@ -150,7 +150,7 @@ function countOutcomes(outcomes: ("pass" | "fail" | "errored" | "not_run")[]): O
 }
 
 /** Quality gate outcome uses the same four states: pass/fail is the gate result, error is ERRORED, anything else is NOT RUN. */
-function gateOutcome(status: string): "pass" | "fail" | "errored" | "not_run" {
+export function gateOutcome(status: string): "pass" | "fail" | "errored" | "not_run" {
   if (status === "pass" || status === "fail") return status;
   if (status === "error") return "errored";
   return "not_run";

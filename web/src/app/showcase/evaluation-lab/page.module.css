@@ -253,3 +253,10 @@
 .definitions dd {
   margin: 0;
 }
+
+.note {
+  margin-top: var(--space-4);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+}
