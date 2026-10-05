@@ -17,7 +17,8 @@ import { createPostgresLearnerStateProvider } from "@/lib/learner/postgres-learn
 import { createPostgresLearnerProfileWriter } from "@/lib/learner/postgres-learner-profile-writer";
 import { runTutoringPipeline } from "@/app/api/chat/route";
 import { generateTraceId } from "@/lib/observability/trace";
-import { GOLDEN_EVAL_SET } from "./golden-eval-set";
+import { GOLDEN_EVAL_SET } from "../src/lib/evaluation-lab/golden-eval-set";
+import { execSync } from "node:child_process";
 
 const EVAL_BOT_STUDENT_ID = process.env.EVAL_BOT_STUDENT_ID;
 const EVAL_TEACHER_ID = process.env.EVAL_TEACHER_ID;
@@ -69,12 +70,41 @@ async function markItem(runId: string, goldenId: string, fields: Record<string, 
   }
 }
 
+/** Git short SHA, marked `-dirty` when uncommitted changes exist, so a run can't be attributed to a commit it didn't come from. */
+function versionLabel(): string {
+  if (process.env.EVAL_VERSION_LABEL) return process.env.EVAL_VERSION_LABEL;
+  const sha = execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim();
+  const dirty = execSync("git status --porcelain", { encoding: "utf8" }).trim().length > 0;
+  return dirty ? `${sha}-dirty` : sha;
+}
+
+/** Model names read back from this run's own pipeline events, so the recorded model is what actually ran, not an assumed constant. */
+async function observedModel(runId: string): Promise<string | null> {
+  const { data: items } = await supabase.from("eval_run_items").select("trace_id").eq("run_id", runId);
+  const traceIds = (items ?? []).map((i) => i.trace_id).filter((t): t is string => typeof t === "string");
+  if (traceIds.length === 0) return null;
+
+  const { data: events } = await supabase.from("events").select("payload").in("trace_id", traceIds);
+  const models = new Set<string>();
+  for (const event of events ?? []) {
+    const model = (event.payload as { model?: unknown } | null)?.model;
+    if (typeof model === "string") models.add(model);
+  }
+  return models.size > 0 ? [...models].sort().join(", ") : null;
+}
+
 async function main() {
   console.log(`Starting golden eval run (${GOLDEN_EVAL_SET.length} questions)...`);
 
   const { data: run, error: runError } = await supabase
     .from("eval_runs")
-    .insert({ teacher_id: EVAL_TEACHER_ID, label: `Golden set — ${new Date().toLocaleString()}`, is_public: true })
+    .insert({
+      teacher_id: EVAL_TEACHER_ID,
+      label: `Golden set — ${new Date().toLocaleString()}`,
+      is_public: false,
+      version_label: versionLabel(),
+      model: null,
+    })
     .select("id")
     .single();
 
@@ -191,7 +221,10 @@ async function main() {
     }
   }
 
-  await supabase.from("eval_runs").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", runId);
+  await supabase
+    .from("eval_runs")
+    .update({ status: "completed", completed_at: new Date().toISOString(), model: await observedModel(runId) })
+    .eq("id", runId);
   console.log(`\nRun ${runId} complete.`);
 }
 
