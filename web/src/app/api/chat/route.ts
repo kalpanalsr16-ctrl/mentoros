@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateTraceId, logEvent } from "@/lib/observability/trace";
 import { checkMessageSafety, buildSafetyDeclineMessage } from "@/lib/safety/filter";
@@ -58,6 +59,11 @@ import type { PlanningContext } from "@/lib/agents/planning-context";
 import type { Concept } from "@/lib/knowledge/curriculum-types";
 import type { ReplyKind, MasteryUpdatePayload, MessageRow } from "@/lib/chat/types";
 import { createStreamingEventBuilder, type StreamingEventBuilder } from "@/lib/chat/streaming-event-builder";
+import {
+  createFirstContentTracker,
+  isModelGeneratedReply,
+  replyTimingFields,
+} from "@/lib/chat/turn-timing";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -273,7 +279,15 @@ export async function POST(request: Request) {
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const events = createStreamingEventBuilder(controller);
+      const streamEvents = createStreamingEventBuilder(controller);
+      const firstContent = createFirstContentTracker(elapsedMs);
+      const events: StreamingEventBuilder = {
+        ...streamEvents,
+        chunk(text: string) {
+          firstContent.recordTextDelta(text);
+          streamEvents.chunk(text);
+        },
+      };
 
       try {
         const pipelineResult = await runTutoringPipeline({
@@ -289,6 +303,11 @@ export async function POST(request: Request) {
           learnerProfileWriter,
           signal: request.signal,
         });
+
+        if (pipelineResult.deferredEvaluation) {
+          const evaluation = pipelineResult.deferredEvaluation;
+          after(() => runEvaluationAgent(supabase, evaluation));
+        }
 
         if (pipelineResult.cancelled) {
           // Cancel (Sprint 4): the student stopped generation, which is not
@@ -339,7 +358,10 @@ export async function POST(request: Request) {
           return;
         }
 
-        const wallClockMs = elapsedMs();
+        const replyCompletedMs = elapsedMs();
+        if (isModelGeneratedReply(pipelineResult.replyKind, pipelineResult.llmMetadata)) {
+          firstContent.recordCompleteReply(replyCompletedMs);
+        }
         await logEvent(supabase, {
           traceId,
           eventName: pipelineResult.safe ? "reply_sent" : "safety_reply_sent",
@@ -351,7 +373,11 @@ export async function POST(request: Request) {
             modality,
             ...(voiceTraceId ? { voiceTraceId } : {}),
             ...(source ? { source } : {}),
-            wallClockMs,
+            ...replyTimingFields({
+              replyCompletedMs,
+              evaluationDeferred: pipelineResult.deferredEvaluation !== undefined,
+              firstContentMs: firstContent.value(),
+            }),
             ...pipelineResult.llmMetadata,
           },
         });
@@ -426,7 +452,11 @@ type PipelineResult = {
   // distinct from every other field above, which the caller ignores
   // entirely when this is true.
   cancelled?: boolean;
+  // Evaluation runs after the reply is sent, so it never delays the student.
+  deferredEvaluation?: EvaluationRequest;
 };
+
+type EvaluationRequest = Parameters<typeof runEvaluationAgent>[1];
 
 /**
  * The full Safety -> Router -> Planning -> Concept/Practice/Assessment ->
@@ -544,6 +574,10 @@ export async function runTutoringPipeline(params: {
   let practiceSetPayload: PracticeSet | undefined;
   let assessmentReportPayload: AssessmentReport | undefined;
   let masteryUpdatePayload: MasteryUpdatePayload | undefined;
+  let deferredEvaluation: EvaluationRequest | undefined;
+  const deferEvaluation = (request: EvaluationRequest) => {
+    deferredEvaluation = request;
+  };
 
   if (!safetyAssessment.safe) {
     // Blocked messages never reach Router/Planning/Concept Agent at all
@@ -790,7 +824,7 @@ export async function runTutoringPipeline(params: {
         replyKind = "practice";
         practiceSetPayload = practiceResult.response;
 
-        await runEvaluationAgent(supabase, {
+        deferEvaluation({
           traceId,
           studentId,
           conversationId: activeConversationId,
@@ -833,7 +867,7 @@ export async function runTutoringPipeline(params: {
         replyKind = "assessment";
         assessmentReportPayload = assessmentResult.response;
 
-        await runEvaluationAgent(supabase, {
+        deferEvaluation({
           traceId,
           studentId,
           conversationId: activeConversationId,
@@ -958,7 +992,7 @@ export async function runTutoringPipeline(params: {
 
         replyContent = formatTeachingResponseAsReply(conceptResult.response);
 
-        await runEvaluationAgent(supabase, {
+        deferEvaluation({
           traceId,
           studentId,
           conversationId: activeConversationId,
@@ -1069,6 +1103,7 @@ export async function runTutoringPipeline(params: {
     practiceSetPayload,
     assessmentReportPayload,
     masteryUpdatePayload,
+    deferredEvaluation,
   };
 }
 
