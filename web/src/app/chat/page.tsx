@@ -53,7 +53,35 @@ export default async function ChatPage({
     .order("created_at", { ascending: false })
     .limit(HISTORY_MESSAGE_LIMIT);
 
-  const orderedRows = [...(recentRows ?? [])].reverse();
+  // AI Tutor's automatic lesson request isn't something the student asked here.
+  // Its turns are recognised two ways: the tagged reply event (newer turns), or the
+  // exact prompt the tutor sends for a concept (turns stored before the tag existed).
+  const { data: tutorAutoReplies } = await supabase
+    .from("events")
+    .select("payload")
+    .eq("event_name", "reply_sent")
+    .eq("payload->>source", "tutor_auto")
+    .order("created_at", { ascending: false })
+    .limit(1000);
+  const tutorAutoMessageIds = new Set(
+    (tutorAutoReplies ?? []).flatMap((row) => {
+      const payload = row.payload as { userMessageId?: string; assistantMessageId?: string };
+      return [payload.userMessageId, payload.assistantMessageId].filter((id): id is string => Boolean(id));
+    }),
+  );
+  const { data: conceptRows } = await supabase.from("concepts").select("name");
+  const tutorPrompts = new Set((conceptRows ?? []).map((c) => `Can you explain ${c.name}?`));
+
+  // A reply belongs to the question right before it, so it inherits that question's status.
+  const visibleRows: typeof recentRows = [];
+  let inTutorExchange = false;
+  for (const row of [...(recentRows ?? [])].reverse()) {
+    if (row.role === "user") inTutorExchange = tutorPrompts.has(row.content) || tutorAutoMessageIds.has(row.id);
+    const isTutorReply = row.role === "assistant" && (inTutorExchange || tutorAutoMessageIds.has(row.id));
+    if (!isTutorReply && !(row.role === "user" && inTutorExchange)) visibleRows.push(row);
+  }
+
+  const orderedRows = visibleRows ?? [];
   const conversationId = orderedRows.at(-1)?.conversation_id ?? null;
   const initialMessages: ChatMessage[] = orderedRows.map(({ id, role, content, trace_id }) => ({
     id,
