@@ -614,3 +614,91 @@ Voice turn and avatar correlation: **not run live** (Muse and Tavus cost). Unit-
 - The residual 2.1 s is a known blind spot. It should be attributed in a later phase, not guessed now.
 - Cancellation observability depends on the browser actually sending the abort. A tab closed without Cancel is not recorded (see "Not instrumented").
 - Sentry must be configured with a DSN in production for write failures to surface beyond the server log.
+
+---
+
+## E3 — Performance and AI economics (implemented)
+
+Scope: an authorized showcase page that reports measured timing, token counts, and estimated inference cost, each with its sample size. No optimisation, no change to pipeline behaviour, prompts, the Router, the judge, thresholds, or the benchmark. Speed and cost are shown alongside quality, which lives in the Evaluation Lab.
+
+### Data included and excluded
+
+| Traffic | Treatment | Why |
+|---|---|---|
+| Unclassified ordinary traffic (students, the demo account, any tests) | **Included** | Not verified as real-student traffic. Students, the demo account, and tests cannot be told apart |
+| Benchmark runs (`eval_run_items.trace_id` join) | **Excluded** from every metric | They are a fixed synthetic workload. They are reported only in the Evaluation Lab. They also write no terminal turn event, because the runner calls the pipeline directly |
+| AI Tutor automatic requests (`source = tutor_auto`) | **Excluded** from every metric and counted separately | These are system-initiated requests, not student questions |
+
+Traffic classes are computed in SQL by `showcase_performance_rows()` (migration 0032), which checks `ai_showcase_access` before returning anything. Each row carries a traffic class, a model, measured numbers, and no student identifier, no payload text, and no reply content.
+
+### Metric definitions
+
+| Figure | Source event(s) | Calculation | Unit | Inclusion | Exclusion | Limitation |
+|---|---|---|---|---|---|---|
+| Stage latency (Safety, Router, Concept, Practice, Assessment, General, Reflection, Evaluation) | `message_received`/`safety_blocked`, `intent_detected`, `concept_explained`, `practice_generated`, `assessment_completed`, `llm_call_succeeded`, `reflection_completed`, `evaluation_completed` | Each call's own measured `latencyMs` (`evaluationLatencyMs` for Evaluation) | ms | Ordinary traffic, one row per call | Benchmark, AI Tutor auto | Wall-clock of the call only. No queueing or network time before it |
+| Planning | `learning_plan_created` | Measured duration from before the learner-state read to the completed plan decision | ms | Turns after E1 | Pre-E1 turns | Excludes Personalization, which runs after it |
+| Speech-to-text | `voice_transcription_completed` | Muse fetch time | ms | Ordinary | Benchmark | Muse cost not included |
+| Turn wall-clock | `reply_sent`, `safety_reply_sent`, `reply_failed`, `turn_cancelled` | Server elapsed time from authentication to the terminal event | ms | Turns after E1 | Pre-E1 turns | Not the sum of stages |
+| Measured stage share | Core stage calls above | Each stage's summed latency ÷ all core stages' summed latency | % | Ordinary | Benchmark, AI Tutor auto | Not a waterfall: no start times, and unmeasured work is outside the total |
+| Tokens and estimated cost | Stage events with `model`, `inputTokens`, `outputTokens` (`evaluation…` for Evaluation) | Tokens are summed from provider `usage`. Cost = tokens × application rates (`pricing.ts`) | tokens, USD (ESTIMATED) | Ordinary | Benchmark, AI Tutor auto | Estimate, not provider billing. Priced with today's rates, not the rates at write time |
+| Cost per observed turn | Every LLM call of one turn | Sum of that turn's call estimates, counted only if every call's model is priced | USD (ESTIMATED) | Ordinary turns with LLM calls | Any turn with an unpriced call | Turns differ widely in intent and length |
+| Voice segments | `voice_turn_timing` (browser) | Segment durations as reported by the browser | ms | Ordinary voice turns | Benchmark | Browser clock, not Tavus. Each segment has its own n, because older turns report different fields |
+| Typed versus spoken stage sum | Core stage calls, grouped per turn by modality | Per-turn sum of measured core-stage latency | ms | Turns with a recorded modality | Turns with no modality | Compares measured stage time only; the voice turn's browser segment is a different measure |
+| Outcomes | Terminal events | Counts only | count | Ordinary | Benchmark, AI Tutor auto | No rates: samples are too small |
+
+### Pricing consolidation
+
+- New `web/src/lib/llm/pricing.ts` is the typed source for inference prices. It returns no price for an unknown model. `priceFor()` checks the model key with `hasOwnProperty`, so prototype names are not priced.
+- `web/src/lib/agents/observability-agent.ts` now imports it. Its numbers are unchanged.
+- **Not consolidated:** `web/src/lib/llm/client.ts` still holds its own copy of the same two rates. That file is pinned by a hash guard test (`homework-generator-isolation.test.ts`) and its own standing rule requires explicit sign-off before a change. A test compares the two copies and fails if they drift. Switching `client.ts` to the shared module needs your approval.
+- Historical stored costs (`estimatedCostUsd`, `evaluationCostUsd`) are not changed. The showcase recomputes estimates from token counts with the current rates. Rates are not versioned per event, so a future rate change would move historical estimates unless a pricing version is recorded. That is deferred.
+
+### Sample sizes at the time of implementation
+
+Computed from the production database through the same mapping as migration 0032 (scratch run, not committed):
+
+| Figure | n |
+|---|---|
+| Ordinary turns | 195 |
+| AI Tutor automatic requests (excluded) | 8 turns |
+| Benchmark traces (excluded) | 29 |
+| Turns with instrumented wall-clock | 2 |
+| Turns with a Planning duration | 2 |
+| Safety calls | 184 |
+| Router calls | 163 |
+| Concept calls | 48 |
+| Practice calls | 8 |
+| Assessment calls | 18 |
+| General reply calls | 74 |
+| Reflection calls | 18 |
+| Evaluation calls | 75 |
+| Muse transcriptions | 43 |
+| Voice turns with question→transcript timing | 33 |
+| Voice turns with transcript→reply timing | 33 |
+| Voice turns with reply→first-audio timing | 7 |
+| Voice turns with first-audio total | 21 |
+| Turns with a fully priced cost | 179 |
+
+Medians appear only at n ≥ 30, and p90 only at n ≥ 50. The wall-clock figures (n = 2) are shown as observed values only.
+
+### What the measurements show, and what they do not
+
+- **Measured:** Concept calls have a median of about 9.6 s (n = 48, range 7.6–34.7 s). Router has a median of about 2.4 s (n = 163). Safety has a median of about 1.9 s (n = 184), but one call measured about 116 s, and the cause has not been investigated.
+- **Measured share:** across all ordinary turns, Safety is about 26% of measured core-stage time and the unguided general reply about 22%. Concept is about 18%. Concept is not the largest share across all turns, because Safety runs on every turn.
+- **Per-turn finding:** on turns that reach the Concept call, the Concept call is the longest measured stage on enough turns to support a conclusion. The interpretation is emitted only when n ≥ 30 and the proportion is above 50%.
+- **Voice:** Muse transcription has a median of about 3.0 s (n = 43). Transcript→reply has n = 33; reply→first-audio has n = 7, so no voice comparison between those two segments is drawn.
+- **Text versus spoken stage sums:** medians are close (about 11.1 s for typed turns, n = 30; about 11.0 s for spoken turns, n = 37). The sample is small, so no difference is claimed.
+- **Estimated cost:** the median cost per fully priced turn is about $0.045 (n = 179), with a range of about $0.007 to $0.118. Total estimated spend across these calls is about $7.81 (567 calls, about 1.19 million tokens).
+- **Reliability:** 194 completed, 1 cancelled, 0 errored, out of 195 ordinary turns. Counts only.
+
+### Measurement gaps shown in the UI
+
+Time to first streamed token; Context and knowledge retrieval durations; no positioned waterfall; Muse and Tavus cost; traffic that cannot be separated; small samples; pre-E1 turns with no wall-clock or Planning duration.
+
+### Live verification
+
+Migration 0032 was applied to production. The demo showcase account loads `/showcase/performance` on desktop (1440 px) and mobile (390 px), with no horizontal overflow. A signed-out visit redirects to sign-in. An anonymous call to `showcase_performance_rows()` is refused by the database (401, permission denied).
+
+The first live run showed fewer rows than the database holds. PostgREST caps each response at 1000 rows, and the loader read only the first response (1,278 rows exist). The loader now pages through all rows in a fixed order (`created_at`, `trace_id`, `event_name`), and a test covers a capped response. After this fix the page matches the offline figures above.
+
+Not live-tested: an authenticated account without showcase access. Verifying it would need a non-showcase account, and none was created for this check. The refusal is enforced in the function's SQL.

@@ -1,4 +1,5 @@
 import type { createClient } from "@/lib/supabase/server";
+import { estimateCostForModel } from "@/lib/llm/pricing";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -82,8 +83,7 @@ const FAILURE_EVENT_NAMES = new Set([
  * from client.ts directly to avoid a runtime dependency from this
  * read-only reporting module on the Anthropic SDK.
  */
-const INPUT_COST_PER_MILLION_TOKENS_USD = 5;
-const OUTPUT_COST_PER_MILLION_TOKENS_USD = 25;
+const OBSERVED_MODEL = "claude-opus-4-8";
 
 export type AgentExecutionRecord = {
   agent: string;
@@ -157,9 +157,7 @@ export function buildObservabilityReport(traceId: string, events: EventRow[]): O
     (sum, e) => sum + (typeof e.payload.outputTokens === "number" ? e.payload.outputTokens : 0),
     0,
   );
-  const estimatedCostUsd =
-    (totalInputTokens / 1_000_000) * INPUT_COST_PER_MILLION_TOKENS_USD +
-    (totalOutputTokens / 1_000_000) * OUTPUT_COST_PER_MILLION_TOKENS_USD;
+  const estimatedCostUsd = estimateCostForModel(OBSERVED_MODEL, totalInputTokens, totalOutputTokens) ?? 0;
 
   const errorCount = sorted.filter((e) => FAILURE_EVENT_NAMES.has(e.event_name)).length;
 

@@ -20,7 +20,7 @@ const SECTIONS: ShowcaseSection[] = [
   { label: "Learner Model", href: "/showcase/learner-model" },
   { label: "Evaluation Lab", href: "/showcase/evaluation-lab" },
   { label: "System Architecture", href: "/showcase/architecture" },
-  { label: "Performance" },
+  { label: "Performance", href: "/showcase/performance" },
   { label: "Experiments" },
   { label: "Technical Case Study" },
 ];
