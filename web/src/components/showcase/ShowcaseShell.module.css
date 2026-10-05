@@ -17,6 +17,19 @@
   background: var(--color-surface);
 }
 
+.back {
+  display: inline-block;
+  margin-bottom: var(--space-4);
+  font-size: 14px;
+  color: var(--color-interactive);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.back:hover {
+  text-decoration: underline;
+}
+
 .navEyebrow {
   font-size: 12px;
   letter-spacing: 0.08em;

@@ -16,6 +16,7 @@ type ShowcaseSection = { label: string; href?: string };
 const SECTIONS: ShowcaseSection[] = [
   { label: "Overview", href: "/showcase" },
   { label: "AI Flight Recorder", href: "/showcase/flight-recorder" },
+  { label: "Dev Brief", href: "/showcase/dev-brief" },
   { label: "Learner Model" },
   { label: "Evaluation Lab" },
   { label: "System Architecture" },
@@ -29,9 +30,12 @@ export function ShowcaseShell({ userEmail, children }: { userEmail?: string; chi
 
   return (
     <div className={styles.shell}>
-      <Header userEmail={userEmail} homeHref="/showcase" />
+      <Header userEmail={userEmail} homeHref="/chat" />
       <div className={styles.body}>
         <nav className={styles.nav} aria-label="Showcase sections">
+          <Link href="/chat" className={styles.back}>
+            &larr; Back to Ask Mentor
+          </Link>
           <p className={styles.navEyebrow}>Explore the AI System</p>
           <ul className={styles.navList}>
             {SECTIONS.map((section) => {

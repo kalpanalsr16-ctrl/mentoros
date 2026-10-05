@@ -3,14 +3,13 @@
 import type { ReactNode } from "react";
 import { Header } from "@/design-system/layouts/Header";
 import { Sidebar, BottomTabBar, type NavItem } from "@/design-system/layouts/Sidebar";
-import { AskMentorIcon, AiTutorIcon, MyLearningIcon, DevBriefIcon, TransparencyIcon } from "@/design-system/icons";
+import { AskMentorIcon, AiTutorIcon, MyLearningIcon, TransparencyIcon } from "@/design-system/icons";
 import styles from "./LearnerShell.module.css";
 
 /**
- * The four learner-facing destinations (ASK -> LEARN -> REMEMBER -> TRUST,
- * per the redesign brief). Dev Brief is a `secondaryItem` on Sidebar --
- * same nav, visually separated at the bottom -- since it's aimed at a
- * technical reviewer, not part of the learner's own day-to-day loop.
+ * The learner-facing destinations (ASK -> LEARN -> REMEMBER -> TRUST, per
+ * the redesign brief). Explore the AI System is the showcase entry point
+ * (Dev Brief lives inside it), shown only to ai_showcase_access accounts.
  */
 const ASK_MENTOR_NAV_ITEM: NavItem = { label: "Ask Mentor", href: "/chat", icon: AskMentorIcon };
 const MY_LEARNING_NAV_ITEM: NavItem = { label: "My Learning", href: "/learning", icon: MyLearningIcon };
@@ -26,8 +25,6 @@ function primaryNavItems(showcaseAccess: boolean): NavItem[] {
     AI_TUTOR_NAV_ITEM,
   ];
 }
-
-const SECONDARY_NAV_ITEMS: NavItem[] = [{ label: "Dev Brief", href: "/dev-brief", icon: DevBriefIcon }];
 
 /**
  * Account-management pages deliberately excluded from the primary/
@@ -66,15 +63,14 @@ export type LearnerShellProps = {
  */
 export function LearnerShell({ userEmail, showcaseAccess = false, children, fullBleed = false }: LearnerShellProps) {
   const primaryItems = primaryNavItems(showcaseAccess);
-  const secondaryItems = showcaseAccess ? SECONDARY_NAV_ITEMS : [];
   return (
     <div className={styles.shell}>
       <Header userEmail={userEmail} homeHref="/chat" accountItems={ACCOUNT_ITEMS} />
       <div className={styles.body}>
-        <Sidebar items={primaryItems} secondaryItems={secondaryItems} ariaLabel="Learner navigation" />
+        <Sidebar items={primaryItems} ariaLabel="Learner navigation" />
         <main className={fullBleed ? styles.contentFullBleed : styles.content}>{children}</main>
       </div>
-      <BottomTabBar items={[...primaryItems, ...secondaryItems]} />
+      <BottomTabBar items={primaryItems} />
     </div>
   );
 }
