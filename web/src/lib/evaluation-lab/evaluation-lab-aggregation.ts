@@ -1,6 +1,23 @@
 import { GOLDEN_EVAL_SET, type ExpectedAgent } from "@/lib/evaluation-lab/golden-eval-set";
 
-export type RoutingResult = "pass" | "fail" | "not_run";
+/**
+ * PASSED / FAILED: the case ran and the deterministic check was applied.
+ * ERRORED: the case was attempted but the execution errored, so there is no result.
+ * NOT RUN: no execution result exists (never started, still pending or running,
+ * or the stored case is not in the current golden set).
+ */
+export type RoutingResult = "pass" | "fail" | "errored" | "not_run";
+
+/** Counts kept separate, so the denominator is always explicit. `evaluated` = passed + failed. */
+export type OutcomeCounts = {
+  total: number;
+  passed: number;
+  failed: number;
+  errored: number;
+  notRun: number;
+  evaluated: number;
+  rate: number | null;
+};
 
 export type LabRunRow = {
   id: string;
@@ -52,8 +69,8 @@ export type LabCase = {
 
 export type LabSummary = {
   caseCount: number;
-  routing: { passed: number; evaluated: number; notRun: number; rate: number | null };
-  qualityGate: { passed: number; evaluated: number; rate: number | null };
+  routing: OutcomeCounts;
+  qualityGate: OutcomeCounts;
   judgeMeans: {
     overall: MeanWithSample;
     groundedness: MeanWithSample;
@@ -65,19 +82,19 @@ export type LabSummary = {
 
 export type MeanWithSample = { mean: number | null; sample: number };
 
-const COMPLETED = new Set(["pass", "fail"]);
-
 /**
  * Deterministic routing check: the Router's actual agent equals the
- * human-authored expected agent. Cases that didn't complete, or whose golden
- * case no longer exists, are not run rather than guessed at.
+ * human-authored expected agent. An execution error is ERRORED, not a
+ * failed routing decision. Anything without a result is NOT RUN, never guessed.
  */
 export function routingResult(
   expected: ExpectedAgent | null | "not_in_dataset",
   actualAgent: string | null,
   status: string,
 ): RoutingResult {
-  if (expected === "not_in_dataset" || !COMPLETED.has(status)) return "not_run";
+  if (expected === "not_in_dataset") return "not_run";
+  if (status === "error") return "errored";
+  if (status !== "pass" && status !== "fail") return "not_run";
   return (actualAgent ?? null) === expected ? "pass" : "fail";
 }
 
@@ -116,15 +133,30 @@ function mean(values: (number | null)[]): MeanWithSample {
   return { mean: present.reduce((sum, v) => sum + v, 0) / present.length, sample: present.length };
 }
 
-function rate(passed: number, evaluated: number): number | null {
-  return evaluated === 0 ? null : passed / evaluated;
+function countOutcomes(outcomes: ("pass" | "fail" | "errored" | "not_run")[]): OutcomeCounts {
+  const count = (o: string) => outcomes.filter((x) => x === o).length;
+  const passed = count("pass");
+  const failed = count("fail");
+  const evaluated = passed + failed;
+  return {
+    total: outcomes.length,
+    passed,
+    failed,
+    errored: count("errored"),
+    notRun: count("not_run"),
+    evaluated,
+    rate: evaluated === 0 ? null : passed / evaluated,
+  };
+}
+
+/** Quality gate outcome uses the same four states: pass/fail is the gate result, error is ERRORED, anything else is NOT RUN. */
+function gateOutcome(status: string): "pass" | "fail" | "errored" | "not_run" {
+  if (status === "pass" || status === "fail") return status;
+  if (status === "error") return "errored";
+  return "not_run";
 }
 
 export function summarizeLab(cases: LabCase[]): LabSummary {
-  const routed = cases.filter((c) => c.routing !== "not_run");
-  const routingPassed = routed.filter((c) => c.routing === "pass").length;
-  const completed = cases.filter((c) => COMPLETED.has(c.status));
-  const gatePassed = completed.filter((c) => c.status === "pass").length;
 
   const hallucinationRisk: Record<string, number> = {};
   for (const c of cases) {
@@ -135,13 +167,8 @@ export function summarizeLab(cases: LabCase[]): LabSummary {
 
   return {
     caseCount: cases.length,
-    routing: {
-      passed: routingPassed,
-      evaluated: routed.length,
-      notRun: cases.length - routed.length,
-      rate: rate(routingPassed, routed.length),
-    },
-    qualityGate: { passed: gatePassed, evaluated: completed.length, rate: rate(gatePassed, completed.length) },
+    routing: countOutcomes(cases.map((c) => c.routing)),
+    qualityGate: countOutcomes(cases.map((c) => gateOutcome(c.status))),
     judgeMeans: {
       overall: mean(cases.map((c) => c.judge.overall)),
       groundedness: mean(cases.map((c) => c.judge.groundedness)),

@@ -2,13 +2,29 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getEvaluationLab } from "@/lib/evaluation-lab/get-evaluation-lab";
 import { GOLDEN_EVAL_SET } from "@/lib/evaluation-lab/golden-eval-set";
-import type { LabCase, LabRunRow, MeanWithSample, RoutingResult } from "@/lib/evaluation-lab/evaluation-lab-aggregation";
+import type {
+  LabCase,
+  LabRunRow,
+  MeanWithSample,
+  OutcomeCounts,
+  RoutingResult,
+} from "@/lib/evaluation-lab/evaluation-lab-aggregation";
 import { Badge, type BadgeVariant } from "@/design-system/primitives/Badge";
 import { Card } from "@/design-system/primitives/Card";
 import styles from "./page.module.css";
 
-const ROUTING_LABEL: Record<RoutingResult, string> = { pass: "Pass", fail: "Fail", not_run: "Not run" };
-const ROUTING_VARIANT: Record<RoutingResult, BadgeVariant> = { pass: "success", fail: "danger", not_run: "neutral" };
+const ROUTING_LABEL: Record<RoutingResult, string> = {
+  pass: "Passed",
+  fail: "Failed",
+  errored: "Errored",
+  not_run: "Not run",
+};
+const ROUTING_VARIANT: Record<RoutingResult, BadgeVariant> = {
+  pass: "success",
+  fail: "danger",
+  errored: "warning",
+  not_run: "neutral",
+};
 
 const METHOD_LABEL = {
   deterministic: "A · Deterministic",
@@ -18,7 +34,12 @@ const METHOD_LABEL = {
 } as const;
 
 function percent(rate: number | null): string {
-  return rate === null ? "No cases evaluated" : `${Math.round(rate * 100)}%`;
+  return rate === null ? "No cases evaluated" : `${Math.round(rate * 100)}% of evaluated`;
+}
+
+/** Shows the denominator: evaluated passed, then every other outcome, then the total. */
+function outcomeLine(c: OutcomeCounts): string {
+  return `${c.failed} failed · ${c.errored} errored · ${c.notRun} not run · ${c.total} total`;
 }
 
 function score(mean: MeanWithSample): string {
@@ -87,6 +108,19 @@ export default async function EvaluationLabPage({
             shown as gaps, not estimated.
           </li>
         </ul>
+        <details className={styles.definitions}>
+          <summary>What Passed, Failed, Errored and Not run mean</summary>
+          <dl>
+            <dt>Passed</dt>
+            <dd>The case ran and met the deterministic expectation.</dd>
+            <dt>Failed</dt>
+            <dd>The case ran and did not meet the expectation.</dd>
+            <dt>Errored</dt>
+            <dd>The case was attempted but execution errored, so no result exists. Errored cases are not counted as passed or failed.</dd>
+            <dt>Not run</dt>
+            <dd>No execution result exists: the case never finished, or it is not in the current golden set.</dd>
+          </dl>
+        </details>
       </section>
 
       {!lab && <p className={styles.muted}>Evaluation results couldn&apos;t be loaded right now.</p>}
@@ -138,13 +172,14 @@ export default async function EvaluationLabPage({
 
             <div className={styles.metrics}>
               <Card className={styles.metric}>
-                <p className={styles.label}>{METHOD_LABEL.deterministic} — routing accuracy</p>
+                <p className={styles.label}>{METHOD_LABEL.deterministic} — routing</p>
                 <p className={styles.metricValue}>
                   {lab.summary.routing.passed} / {lab.summary.routing.evaluated}
                 </p>
                 <p className={styles.muted}>
-                  {percent(lab.summary.routing.rate)} · {lab.summary.routing.notRun} not run
+                  evaluated passed · {percent(lab.summary.routing.rate)}
                 </p>
+                <p className={styles.muted}>{outcomeLine(lab.summary.routing)}</p>
               </Card>
               <Card className={styles.metric}>
                 <p className={styles.label}>{METHOD_LABEL.judge} — quality gate</p>
@@ -152,8 +187,10 @@ export default async function EvaluationLabPage({
                   {lab.summary.qualityGate.passed} / {lab.summary.qualityGate.evaluated}
                 </p>
                 <p className={styles.muted}>
-                  {percent(lab.summary.qualityGate.rate)} · overall score meets each case&apos;s threshold
+                  evaluated passed · {percent(lab.summary.qualityGate.rate)}
                 </p>
+                <p className={styles.muted}>Overall score meets each case&apos;s threshold.</p>
+                <p className={styles.muted}>{outcomeLine(lab.summary.qualityGate)}</p>
               </Card>
               <Card className={styles.metric}>
                 <p className={styles.label}>{METHOD_LABEL.judge} — mean scores</p>
@@ -206,7 +243,7 @@ export default async function EvaluationLabPage({
                   <details className={styles.case}>
                     <summary className={styles.caseSummary}>
                       <span className={styles.caseQuestion}>{c.question}</span>
-                      <Badge variant={ROUTING_VARIANT[c.routing]}>Routing {ROUTING_LABEL[c.routing]}</Badge>
+                      <Badge variant={ROUTING_VARIANT[c.routing]}>Routing: {ROUTING_LABEL[c.routing]}</Badge>
                     </summary>
                     <dl className={styles.facts}>
                       <dt>Student input</dt>

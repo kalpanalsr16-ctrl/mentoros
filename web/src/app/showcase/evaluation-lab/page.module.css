@@ -226,3 +226,30 @@
   color: var(--color-danger-600);
   margin: var(--space-2) 0 0;
 }
+
+.definitions {
+  margin-top: var(--space-4);
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.definitions summary {
+  cursor: pointer;
+  color: var(--color-text-primary);
+}
+
+.definitions dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-1) var(--space-4);
+  margin: var(--space-3) 0 0;
+}
+
+.definitions dt {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.definitions dd {
+  margin: 0;
+}
