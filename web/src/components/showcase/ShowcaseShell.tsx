@@ -17,7 +17,7 @@ const SECTIONS: ShowcaseSection[] = [
   { label: "Overview", href: "/showcase" },
   { label: "AI Flight Recorder", href: "/showcase/flight-recorder" },
   { label: "Dev Brief", href: "/showcase/dev-brief" },
-  { label: "Learner Model" },
+  { label: "Learner Model", href: "/showcase/learner-model" },
   { label: "Evaluation Lab" },
   { label: "System Architecture" },
   { label: "Performance" },
