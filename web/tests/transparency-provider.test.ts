@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildTraceView } from "@/lib/observability/transparency-provider";
+import { buildTraceView, findVoiceTraceId } from "@/lib/observability/transparency-provider";
 import type { EventRow } from "@/lib/agents/observability-agent";
 
 function row(eventName: string, payload: Record<string, unknown>): EventRow {
@@ -116,4 +116,89 @@ test("Planning and Memory never carry model/tokens/cost -- deterministic logic, 
 
   const knowledge = view!.nodes.find((n) => n.agent === "Knowledge")!;
   assert.equal(knowledge.headline, "No concept resolved");
+});
+
+const VOICE_ID = "11111111-2222-4333-8444-555555555555";
+
+test("concept comes from the logged conceptId on the plan", () => {
+  const view = buildTraceView("t-concept", [
+    row("learning_plan_created", { strategy: "x", conceptResolved: true, conceptId: "c-1", conceptName: "Addition" }),
+  ]);
+  assert.deepEqual(view?.summary.concept, { status: "instrumented", conceptId: "c-1", conceptName: "Addition" });
+});
+
+test("a plan with a null conceptId is 'no concept', not 'not instrumented'", () => {
+  const view = buildTraceView("t-none", [
+    row("learning_plan_created", { strategy: "x", conceptResolved: false, conceptId: null, conceptName: null }),
+  ]);
+  assert.deepEqual(view?.summary.concept, { status: "no_concept" });
+});
+
+test("traces written before conceptId was logged are marked not instrumented", () => {
+  const view = buildTraceView("t-old", [
+    row("learning_plan_created", { strategy: "x", conceptResolved: true }),
+    row("concept_explained", { model: "m", nextStep: "n" }),
+  ]);
+  assert.deepEqual(view?.summary.concept, { status: "not_instrumented" });
+});
+
+test("text-only turns have no voice view", () => {
+  const view = buildTraceView("t-text", [row("reply_sent", { source: "tutor" })]);
+  assert.equal(view?.voice, null);
+});
+
+test("voice view joins transcription and timing for the linked voice trace", () => {
+  const view = buildTraceView(
+    "t-voice",
+    [row("reply_sent", { voiceTraceId: VOICE_ID })],
+    [
+      row("voice_transcription_completed", { latencyMs: 820, transcriptLength: 42, audioSeconds: 3.5 }),
+      row("voice_turn_timing", {
+        voiceTraceId: VOICE_ID,
+        avatarStatus: "spoke",
+        questionEndToTranscriptMs: 820,
+        transcriptToReplyMs: 4100,
+        replyStartToAvatarAudioMs: 1900,
+        totalMs: 6900,
+      }),
+    ],
+  );
+  assert.deepEqual(view?.voice, {
+    voiceTraceId: VOICE_ID,
+    transcription: { status: "success", latencyMs: 820, transcriptLength: 42, audioSeconds: 3.5 },
+    turnTiming: {
+      avatarStatus: "spoke",
+      questionEndToTranscriptMs: 820,
+      transcriptToReplyMs: 4100,
+      replyStartToAvatarAudioMs: 1900,
+      totalMs: 6900,
+    },
+  });
+});
+
+test("a voice turn without a browser timing report keeps timing null rather than inventing it", () => {
+  const view = buildTraceView(
+    "t-voice-2",
+    [row("reply_sent", { voiceTraceId: VOICE_ID })],
+    [row("voice_transcription_completed", { latencyMs: 500 })],
+  );
+  assert.equal(view?.voice?.turnTiming, null);
+  assert.equal(view?.voice?.transcription?.latencyMs, 500);
+});
+
+test("a malformed voiceTraceId is ignored", () => {
+  assert.equal(findVoiceTraceId([row("reply_sent", { voiceTraceId: "not-a-uuid" })]), null);
+  assert.equal(findVoiceTraceId([row("reply_sent", { voiceTraceId: VOICE_ID })]), VOICE_ID);
+});
+
+test("assessment and knowledge nodes say what is not instrumented", () => {
+  const view = buildTraceView("t-gaps", [
+    row("learning_plan_created", { strategy: "x", conceptResolved: true, conceptId: "c-1" }),
+    row("assessment_completed", { masteryScore: 70, conceptId: "c-1" }),
+  ]);
+  const assessment = view?.nodes.find((n) => n.agent === "Assessment");
+  const knowledge = view?.nodes.find((n) => n.agent === "Knowledge");
+  assert.ok(assessment?.details.some((d) => d.label === "Per-question correctness" && d.value === "Not currently instrumented"));
+  assert.ok(assessment?.details.some((d) => d.label === "Hints used" && d.value === "Not currently instrumented"));
+  assert.ok(knowledge?.details.some((d) => d.value === "Not currently instrumented"));
 });

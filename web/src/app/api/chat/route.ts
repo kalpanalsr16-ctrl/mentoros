@@ -606,6 +606,8 @@ export async function runTutoringPipeline(params: {
               pace: plan.pace,
               followUpRequired: plan.followUpRequired,
               conceptResolved: planningContext.concept !== null,
+              conceptId: planningContext.concept?.id ?? null,
+              conceptName: planningContext.concept?.name ?? null,
             },
           });
 
@@ -908,6 +910,8 @@ export async function runTutoringPipeline(params: {
           conversationId: activeConversationId,
           payload: {
             model: conceptResult.model,
+            conceptId: planningContext?.concept?.id ?? null,
+            conceptName: planningContext?.concept?.name ?? null,
             nextStep: conceptResult.response.nextStep,
             confidence: conceptResult.response.confidence,
             inputTokens: conceptResult.inputTokens,

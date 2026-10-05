@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Avatar } from "@/design-system/primitives/Avatar";
 import { Button } from "@/design-system/primitives/Button";
 import { ThemeToggle } from "@/design-system/layouts/ThemeToggle";
-import { LogOutIcon, TransparencyIcon, ChevronDownIcon } from "@/design-system/icons";
+import { LogOutIcon, ChevronDownIcon } from "@/design-system/icons";
 import { useSignOut } from "@/lib/supabase/use-sign-out";
 import styles from "./Header.module.css";
 
@@ -40,8 +40,6 @@ export type HeaderProps = {
    * here instead of crowding that nav.
    */
   accountItems?: { label: string; href: string }[];
-  /** Set only for accounts with ai_showcase_access; omitted otherwise so the showcase link never renders for students. */
-  showcaseHref?: string;
 };
 
 /**
@@ -51,7 +49,7 @@ export type HeaderProps = {
  * (docs/design-system/02-Technical-Design-Foundations.md §15) rather
  * than needing a drawer toggle, so Header stays identical across shells.
  */
-export function Header({ userEmail, homeHref, accountItems, showcaseHref }: HeaderProps) {
+export function Header({ userEmail, homeHref, accountItems }: HeaderProps) {
   const { signOut, isSigningOut } = useSignOut();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -80,12 +78,6 @@ export function Header({ userEmail, homeHref, accountItems, showcaseHref }: Head
         <Wordmark href={homeHref} />
       </div>
       <div className={styles.right}>
-        {showcaseHref && (
-          <Link href={showcaseHref} className={styles.explorerLink}>
-            <TransparencyIcon size={16} aria-hidden="true" />
-            <span>Explore the AI System</span>
-          </Link>
-        )}
         <ThemeToggle />
         {userEmail && accountItems && accountItems.length > 0 ? (
           <div className={styles.accountMenu} ref={menuRef}>

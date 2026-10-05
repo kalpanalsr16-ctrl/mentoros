@@ -41,6 +41,32 @@ export type AgentNodeView = {
   derived?: boolean;
 };
 
+/**
+ * `not_instrumented` is for traces written before conceptId was logged; it is
+ * distinct from `no_concept`, where the pipeline ran and matched no curriculum concept.
+ */
+export type TraceConcept =
+  | { status: "instrumented"; conceptId: string; conceptName: string | null }
+  | { status: "no_concept" }
+  | { status: "not_instrumented" };
+
+export type VoiceStageView = {
+  voiceTraceId: string;
+  transcription: {
+    status: "success" | "failed";
+    latencyMs: number | null;
+    transcriptLength: number | null;
+    audioSeconds: number | null;
+  } | null;
+  turnTiming: {
+    avatarStatus: string;
+    questionEndToTranscriptMs: number | null;
+    transcriptToReplyMs: number | null;
+    replyStartToAvatarAudioMs: number | null;
+    totalMs: number | null;
+  } | null;
+};
+
 export type TraceSummary = {
   traceId: string;
   conversationId: string | null;
@@ -49,11 +75,14 @@ export type TraceSummary = {
   totalOutputTokens: number;
   totalCostUsd: number;
   errorCount: number;
+  concept: TraceConcept;
 };
 
 export type TraceView = {
   summary: TraceSummary;
   nodes: AgentNodeView[];
+  /** Null for text-only turns. */
+  voice: VoiceStageView | null;
 };
 
 const FAILURE_EVENT_NAMES = new Set([
@@ -152,6 +181,8 @@ function planningNode(e: EventRow): AgentNodeView {
 }
 
 /** Synthesized, not logged -- Knowledge Retrieval has no event of its own today. */
+const NOT_INSTRUMENTED = "Not currently instrumented";
+
 function knowledgeNode(planningEvent: EventRow): AgentNodeView {
   const resolved = planningEvent.payload.conceptResolved === true;
   return {
@@ -159,7 +190,7 @@ function knowledgeNode(planningEvent: EventRow): AgentNodeView {
     status: "success",
     headline: resolved ? "Concept resolved" : "No concept resolved",
     latencyMs: null,
-    details: [],
+    details: [{ label: "Retrieved curriculum nodes", value: NOT_INSTRUMENTED }],
     raw: {},
     derived: true,
   };
@@ -203,11 +234,15 @@ function mainAgentNode(e: EventRow): AgentNodeView {
         inputTokens: num(e.payload, "inputTokens"),
         outputTokens: num(e.payload, "outputTokens"),
         costUsd: num(e.payload, "estimatedCostUsd"),
-        details: compact([
-          detail("Status", e.payload.status),
-          detail("Recommended next step", e.payload.recommendedNextStep),
-          detail("Misconceptions found", e.payload.misconceptionCount),
-        ]),
+        details: [
+          ...compact([
+            detail("Status", e.payload.status),
+            detail("Recommended next step", e.payload.recommendedNextStep),
+            detail("Misconceptions found", e.payload.misconceptionCount),
+          ]),
+          { label: "Per-question correctness", value: NOT_INSTRUMENTED },
+          { label: "Hints used", value: NOT_INSTRUMENTED },
+        ],
         raw: e.payload,
       };
     case "llm_call_succeeded":
@@ -303,7 +338,70 @@ function evaluationNode(e: EventRow): AgentNodeView {
  * 07_AI_Transparency_Panel.md specifies, not raw chronological order, since
  * ties and near-simultaneous writes shouldn't visually reorder the pipeline.
  */
-export function buildTraceView(traceId: string, events: EventRow[]): TraceView | null {
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The voice transcription trace linked from this turn's reply_sent event, if it was a voice turn. */
+export function findVoiceTraceId(events: EventRow[]): string | null {
+  const reply = events.find((e) => e.event_name === "reply_sent");
+  const id = reply?.payload.voiceTraceId;
+  return typeof id === "string" && UUID_PATTERN.test(id) ? id : null;
+}
+
+function traceConcept(events: EventRow[], planning: EventRow | undefined): TraceConcept {
+  if (planning && "conceptId" in planning.payload) {
+    const id = planning.payload.conceptId;
+    return typeof id === "string"
+      ? { status: "instrumented", conceptId: id, conceptName: str(planning.payload, "conceptName") ?? null }
+      : { status: "no_concept" };
+  }
+  const withConcept = events.find(
+    (e) =>
+      ["concept_explained", "practice_generated", "assessment_completed"].includes(e.event_name) &&
+      typeof e.payload.conceptId === "string",
+  );
+  if (withConcept) {
+    return {
+      status: "instrumented",
+      conceptId: withConcept.payload.conceptId as string,
+      conceptName: str(withConcept.payload, "conceptName") ?? null,
+    };
+  }
+  return { status: "not_instrumented" };
+}
+
+function voiceStageView(voiceTraceId: string, voiceEvents: EventRow[]): VoiceStageView {
+  const transcription = voiceEvents.find(
+    (e) => e.event_name === "voice_transcription_completed" || e.event_name === "voice_transcription_failed",
+  );
+  const timing = voiceEvents.find((e) => e.event_name === "voice_turn_timing");
+  return {
+    voiceTraceId,
+    transcription: transcription
+      ? {
+          status: transcription.event_name === "voice_transcription_completed" ? "success" : "failed",
+          latencyMs: num(transcription.payload, "latencyMs") ?? null,
+          transcriptLength: num(transcription.payload, "transcriptLength") ?? null,
+          audioSeconds: num(transcription.payload, "audioSeconds") ?? null,
+        }
+      : null,
+    turnTiming: timing
+      ? {
+          avatarStatus: str(timing.payload, "avatarStatus") ?? "unknown",
+          questionEndToTranscriptMs: num(timing.payload, "questionEndToTranscriptMs") ?? null,
+          transcriptToReplyMs: num(timing.payload, "transcriptToReplyMs") ?? null,
+          replyStartToAvatarAudioMs: num(timing.payload, "replyStartToAvatarAudioMs") ?? null,
+          totalMs: num(timing.payload, "totalMs") ?? null,
+        }
+      : null,
+  };
+}
+
+/**
+ * `voiceEvents` are the events sharing this turn's voice trace ID (the
+ * transcription and the browser's timing report), fetched separately by the
+ * provider. Omitted for text turns.
+ */
+export function buildTraceView(traceId: string, events: EventRow[], voiceEvents: EventRow[] = []): TraceView | null {
   if (events.length === 0) return null;
 
   const byName = new Map<string, EventRow>();
@@ -350,6 +448,8 @@ export function buildTraceView(traceId: string, events: EventRow[]): TraceView |
   const totalCostUsd = nodes.reduce((sum, n) => sum + (n.costUsd ?? 0), 0);
   const errorCount = events.filter((e) => FAILURE_EVENT_NAMES.has(e.event_name)).length;
 
+  const voiceTraceId = findVoiceTraceId(events);
+
   return {
     summary: {
       traceId,
@@ -359,7 +459,9 @@ export function buildTraceView(traceId: string, events: EventRow[]): TraceView |
       totalOutputTokens,
       totalCostUsd,
       errorCount,
+      concept: traceConcept(events, byName.get("learning_plan_created")),
     },
     nodes,
+    voice: voiceTraceId ? voiceStageView(voiceTraceId, voiceEvents) : null,
   };
 }

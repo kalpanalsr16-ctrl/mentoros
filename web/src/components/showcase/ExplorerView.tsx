@@ -7,6 +7,7 @@ import { Skeleton } from "@/design-system/primitives/Skeleton";
 import { ChipSelect } from "@/design-system/primitives/ChipSelect";
 import { LineTrendChart } from "@/design-system/patterns/LineTrendChart";
 import { TraceNodeList } from "@/design-system/patterns/TransparencyPanel";
+import { FlightRecorderSummary } from "./FlightRecorderSummary";
 import { formatCostUsd, formatLatencyMs } from "@/lib/observability/format";
 import type { RecentTracesData } from "@/lib/observability/get-recent-traces";
 import type { RecentTrace } from "@/lib/observability/recent-traces-aggregation";
@@ -207,6 +208,7 @@ export function ExplorerView({ initialData }: { initialData: RecentTracesData | 
                 {traceLoadStatus === "error" && <p className={styles.body}>Couldn&apos;t load this trace.</p>}
                 {traceLoadStatus === "ready" && traceView && (
                   <div className={styles.detailNodes}>
+                    <FlightRecorderSummary view={traceView} />
                     <TraceNodeList nodes={traceView.nodes} />
                   </div>
                 )}

@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { Header } from "@/design-system/layouts/Header";
 import { Sidebar, BottomTabBar, type NavItem } from "@/design-system/layouts/Sidebar";
-import { AskMentorIcon, AiTutorIcon, MyLearningIcon, DevBriefIcon } from "@/design-system/icons";
+import { AskMentorIcon, AiTutorIcon, MyLearningIcon, DevBriefIcon, TransparencyIcon } from "@/design-system/icons";
 import styles from "./LearnerShell.module.css";
 
 /**
@@ -12,11 +12,20 @@ import styles from "./LearnerShell.module.css";
  * same nav, visually separated at the bottom -- since it's aimed at a
  * technical reviewer, not part of the learner's own day-to-day loop.
  */
-const PRIMARY_NAV_ITEMS: NavItem[] = [
-  { label: "Ask Mentor", href: "/chat", icon: AskMentorIcon },
-  { label: "AI Tutor", href: "/tutor", icon: AiTutorIcon },
-  { label: "My Learning", href: "/learning", icon: MyLearningIcon },
-];
+const ASK_MENTOR_NAV_ITEM: NavItem = { label: "Ask Mentor", href: "/chat", icon: AskMentorIcon };
+const MY_LEARNING_NAV_ITEM: NavItem = { label: "My Learning", href: "/learning", icon: MyLearningIcon };
+const AI_TUTOR_NAV_ITEM: NavItem = { label: "AI Tutor", href: "/tutor", icon: AiTutorIcon };
+const SHOWCASE_NAV_ITEM: NavItem = { label: "Explore the AI System", href: "/showcase", icon: TransparencyIcon };
+
+/** Explore the AI System appears only for ai_showcase_access accounts; the server gate is the real check. */
+function primaryNavItems(showcaseAccess: boolean): NavItem[] {
+  return [
+    ASK_MENTOR_NAV_ITEM,
+    MY_LEARNING_NAV_ITEM,
+    ...(showcaseAccess ? [SHOWCASE_NAV_ITEM] : []),
+    AI_TUTOR_NAV_ITEM,
+  ];
+}
 
 const SECONDARY_NAV_ITEMS: NavItem[] = [{ label: "Dev Brief", href: "/dev-brief", icon: DevBriefIcon }];
 
@@ -56,20 +65,16 @@ export type LearnerShellProps = {
  * nav items and Header homeHref genuinely differ per role.
  */
 export function LearnerShell({ userEmail, showcaseAccess = false, children, fullBleed = false }: LearnerShellProps) {
+  const primaryItems = primaryNavItems(showcaseAccess);
   const secondaryItems = showcaseAccess ? SECONDARY_NAV_ITEMS : [];
   return (
     <div className={styles.shell}>
-      <Header
-        userEmail={userEmail}
-        homeHref="/chat"
-        accountItems={ACCOUNT_ITEMS}
-        showcaseHref={showcaseAccess ? "/showcase" : undefined}
-      />
+      <Header userEmail={userEmail} homeHref="/chat" accountItems={ACCOUNT_ITEMS} />
       <div className={styles.body}>
-        <Sidebar items={PRIMARY_NAV_ITEMS} secondaryItems={secondaryItems} ariaLabel="Learner navigation" />
+        <Sidebar items={primaryItems} secondaryItems={secondaryItems} ariaLabel="Learner navigation" />
         <main className={fullBleed ? styles.contentFullBleed : styles.content}>{children}</main>
       </div>
-      <BottomTabBar items={[...PRIMARY_NAV_ITEMS, ...secondaryItems]} />
+      <BottomTabBar items={[...primaryItems, ...secondaryItems]} />
     </div>
   );
 }
