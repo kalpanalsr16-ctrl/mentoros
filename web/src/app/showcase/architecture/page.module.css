@@ -1,0 +1,23 @@
+.eyebrow {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+  margin: 0 0 var(--space-2);
+}
+
+.heading {
+  font-family: var(--font-fraunces), serif;
+  font-size: 32px;
+  line-height: 1.2;
+  color: var(--color-text-primary);
+  margin: 0 0 var(--space-3);
+}
+
+.lead {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+  margin: 0 0 var(--space-8);
+  max-width: 720px;
+}
