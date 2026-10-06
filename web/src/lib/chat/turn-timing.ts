@@ -59,6 +59,19 @@ export function replyTimingFields(input: {
 }
 
 /**
+ * Payload for response_done, written after the final `done` event. It cannot
+ * live on reply_sent because reply_sent is written before `done`. The gap
+ * between the two is the awaited reply_sent write, which this makes visible.
+ * replyCompletedMs is unchanged; this only reports when `done` was emitted.
+ */
+export function responseDoneFields(input: { replyCompletedMs: number; responseDoneMs: number }): Record<string, number> {
+  return {
+    responseDoneMs: input.responseDoneMs,
+    postReplyCompletionMs: input.responseDoneMs - input.replyCompletedMs,
+  };
+}
+
+/**
  * Critical-path breakdown (critical-path timing v1). Every segment is a
  * sequential, awaited span on the learner's path to the saved reply, measured
  * from the same turn start as wallClockMs. A segment is recorded only when its
@@ -82,12 +95,40 @@ export type CriticalPathSegment =
 
 export const CRITICAL_PATH_VERSION = 1;
 
-export function createTurnTiming(elapsedMs: () => number) {
+/**
+ * Version of the additive timing fields written next to criticalPath
+ * (authMs, preGeneration*, telemetry split, responseDone). Version 2 adds
+ * them. criticalPathVersion stays 1 because the criticalPath object itself
+ * is unchanged. Turns written before version 2 do not carry these fields.
+ */
+export const TIMING_FIELDS_VERSION = 2;
+
+export type GenerationAgent = "Concept" | "Practice" | "Assessment" | "General";
+
+/**
+ * Turn identity measured outside the E1 clock (authMs) and the deploy the
+ * turn ran on. Reported on every reply_sent, and on terminal events only when
+ * generation began.
+ */
+export type TurnIdentity = { authMs: number | null; deployCommit: string | null };
+
+const UNMEASURED_IDENTITY: TurnIdentity = { authMs: null, deployCommit: null };
+
+export function createTurnTiming(elapsedMs: () => number, identity: TurnIdentity = UNMEASURED_IDENTITY) {
   const segments = new Map<CriticalPathSegment, number>();
   let telemetryWriteMs = 0;
+  let preGenerationTelemetryWriteMs = 0;
+  let postGenerationTelemetryWriteMs = 0;
+  let generation: { agent: GenerationAgent; startedMs: number; residualMs: number } | null = null;
 
   const record = (segment: CriticalPathSegment, startedAt: number) => {
     segments.set(segment, (segments.get(segment) ?? 0) + (elapsedMs() - startedAt));
+  };
+
+  const attributedSegmentsMs = () => {
+    let total = 0;
+    for (const ms of segments.values()) total += ms;
+    return total;
   };
 
   return {
@@ -103,11 +144,74 @@ export function createTurnTiming(elapsedMs: () => number) {
       record(segment, startedAt);
       return value;
     },
+    /**
+     * Called immediately before the final learner-response model request
+     * begins. The first call wins: a turn has one generation call. Calls
+     * before generation starts are the pre-generation span.
+     */
+    markGenerationStart(agent: GenerationAgent): void {
+      if (generation !== null) return;
+      const startedMs = elapsedMs();
+      // Valid only while pre-generation spans are sequential (timingFieldsVersion 2). Overlapping spans need a new version.
+      generation = {
+        agent,
+        startedMs,
+        residualMs: startedMs - attributedSegmentsMs() - preGenerationTelemetryWriteMs,
+      };
+    },
     /** Awaited telemetry writes on the learner's path. Reported apart from segments, so they are visible instead of residual. */
     async telemetry(write: () => Promise<void>): Promise<void> {
       const startedAt = elapsedMs();
+      const beforeGeneration = generation === null;
       await write();
-      telemetryWriteMs += elapsedMs() - startedAt;
+      const ms = elapsedMs() - startedAt;
+      telemetryWriteMs += ms;
+      if (beforeGeneration) {
+        preGenerationTelemetryWriteMs += ms;
+      } else {
+        postGenerationTelemetryWriteMs += ms;
+      }
+    },
+    /**
+     * Additive fields for reply_sent / safety_reply_sent, outside criticalPath.
+     * preGenerationMs, generationAgent, and preGenerationResidualMs exist only
+     * when generation began. Clarification, safety declines, and turns that
+     * never reach generation carry none of them, so no timing is fabricated.
+     * Telemetry split: pre + post always equals criticalPath.telemetryWriteMs.
+     */
+    instrumentationFields(): Record<string, number | string | null> {
+      const fields: Record<string, number | string | null> = {
+        timingFieldsVersion: TIMING_FIELDS_VERSION,
+        authMs: identity.authMs,
+        deployCommit: identity.deployCommit,
+        preGenerationTelemetryWriteMs,
+        postGenerationTelemetryWriteMs,
+      };
+      if (generation !== null) {
+        fields.preGenerationMs = generation.startedMs;
+        fields.generationAgent = generation.agent;
+        fields.preGenerationResidualMs = generation.residualMs;
+      }
+      return fields;
+    },
+    /**
+     * Fields for terminal failure or cancellation events. Present only when
+     * generation began, so the baseline is not biased toward turns that reached
+     * reply_sent. Post-generation telemetry is deliberately omitted: those writes
+     * have not all happened when these events are written, so a total would be
+     * incomplete. The pre-generation values are complete at this point.
+     */
+    terminalTimingFields(): Record<string, number | string | null> {
+      if (generation === null) return {};
+      return {
+        timingFieldsVersion: TIMING_FIELDS_VERSION,
+        authMs: identity.authMs,
+        deployCommit: identity.deployCommit,
+        preGenerationMs: generation.startedMs,
+        generationAgent: generation.agent,
+        preGenerationTelemetryWriteMs,
+        preGenerationResidualMs: generation.residualMs,
+      };
     },
     /** Payload for reply_sent / safety_reply_sent. Only for a reply that was completed. */
     criticalPathFields(replyCompletedMs: number): { criticalPath: Record<string, number> } {

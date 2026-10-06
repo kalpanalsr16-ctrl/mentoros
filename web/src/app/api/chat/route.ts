@@ -65,8 +65,10 @@ import {
   createTurnTiming,
   isModelGeneratedReply,
   replyTimingFields,
+  responseDoneFields,
   type TurnTiming,
 } from "@/lib/chat/turn-timing";
+import { after } from "next/server";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -83,6 +85,9 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 
 export async function POST(request: Request) {
   const traceId = generateTraceId();
+  // Outside the E1 turn clock (turnStartedAt is set after authentication).
+  // Reported as authMs only; never part of any turn-clock field.
+  const authStartedAt = Date.now();
   const supabase = await createClient();
 
   // Composition root: today's concrete KnowledgeProvider/ConceptSearchProvider
@@ -100,6 +105,7 @@ export async function POST(request: Request) {
   const learnerProfileWriter = createPostgresLearnerProfileWriter(supabase);
 
   const { data: claimsData } = await supabase.auth.getClaims();
+  const authMs = Date.now() - authStartedAt;
 
   if (!claimsData?.claims) {
     // No authenticated student to attach this event to, and the events
@@ -114,7 +120,10 @@ export async function POST(request: Request) {
   // docs/PHASE_E_ARCHITECTURE_PERFORMANCE.md (E1) for the exact boundary.
   const turnStartedAt = Date.now();
   const elapsedMs = () => Date.now() - turnStartedAt;
-  const timing = createTurnTiming(elapsedMs);
+  const timing = createTurnTiming(elapsedMs, {
+    authMs,
+    deployCommit: process.env.VERCEL_GIT_COMMIT_SHA ?? null,
+  });
 
   // Checked before any other work -- every message now costs a real
   // Claude API call (M1-04), so a student over the limit shouldn't pay
@@ -338,7 +347,7 @@ export async function POST(request: Request) {
             eventName: "turn_cancelled",
             studentId,
             conversationId: activeConversationId,
-            payload: { wallClockMs: elapsedMs() },
+            payload: { wallClockMs: elapsedMs(), ...timing.terminalTimingFields() },
           });
           return;
         }
@@ -371,6 +380,7 @@ export async function POST(request: Request) {
               reason: "assistant_message_save_failed",
               userMessageId: userMessage.id,
               wallClockMs: elapsedMs(),
+              ...timing.terminalTimingFields(),
             },
           });
           events.error("Could not save the reply.");
@@ -398,6 +408,7 @@ export async function POST(request: Request) {
               firstContentMs: firstContent.value(),
             }),
             ...timing.criticalPathFields(replyCompletedMs),
+            ...timing.instrumentationFields(),
             conceptStreamingArm,
             ...(firstContent.source() ? { firstContentSource: firstContent.source() } : {}),
             ...pipelineResult.llmMetadata,
@@ -405,6 +416,7 @@ export async function POST(request: Request) {
         });
 
         events.state("Completed");
+        const responseDoneMs = elapsedMs();
         events.done({
           conversationId: activeConversationId,
           userMessage,
@@ -424,6 +436,16 @@ export async function POST(request: Request) {
         if (pipelineResult.deferredEvaluation) {
           scheduleDeferredEvaluation(supabase, pipelineResult.deferredEvaluation);
         }
+
+        after(() =>
+          logEvent(supabase, {
+            traceId,
+            studentId,
+            conversationId: activeConversationId,
+            eventName: "response_done",
+            payload: responseDoneFields({ replyCompletedMs, responseDoneMs }),
+          }),
+        );
       } catch (err) {
         if (request.signal.aborted) {
           await logEvent(supabase, {
@@ -431,7 +453,7 @@ export async function POST(request: Request) {
             eventName: "turn_cancelled",
             studentId,
             conversationId: activeConversationId,
-            payload: { wallClockMs: elapsedMs() },
+            payload: { wallClockMs: elapsedMs(), ...timing.terminalTimingFields() },
           });
         } else {
           await logEvent(supabase, {
@@ -439,7 +461,7 @@ export async function POST(request: Request) {
             eventName: "reply_failed",
             studentId,
             conversationId: activeConversationId,
-            payload: { reason: "pipeline_exception", wallClockMs: elapsedMs() },
+            payload: { reason: "pipeline_exception", wallClockMs: elapsedMs(), ...timing.terminalTimingFields() },
           });
         }
         events.error(err instanceof Error ? err.message : "Something went wrong. Please try again.");
@@ -788,6 +810,7 @@ export async function runTutoringPipeline(params: {
           personalizationProfile: profile,
           history,
         };
+        timing.markGenerationStart("Practice");
         practiceResult = await timing.measure("generationMs", async () =>
           createPracticeSet(practiceAgentContext, generatePracticeSet),
         );
@@ -814,6 +837,7 @@ export async function runTutoringPipeline(params: {
           personalizationProfile: profile,
           history,
         };
+        timing.markGenerationStart("Assessment");
         assessmentResult = await timing.measure("generationMs", async () =>
           evaluateResponse(assessmentAgentContext, generateAssessment),
         );
@@ -846,6 +870,7 @@ export async function runTutoringPipeline(params: {
         };
         if (conceptStreamingArm === "treatment" && onConceptText) {
           const streamText = onConceptText;
+          timing.markGenerationStart("Concept");
           conceptStreamOutcome = await timing.measure("generationMs", async () =>
             streamConceptExplanation(conceptAgentContext, { onDisplayText: streamText, signal }),
           );
@@ -861,6 +886,7 @@ export async function runTutoringPipeline(params: {
               payload: {
                 reason: conceptStreamOutcome.reason,
                 shownPartial: true,
+                ...timing.terminalTimingFields(),
                 displayedChars: conceptStreamOutcome.displayedChars,
                 conceptStreaming: 1,
                 conceptStreamingArm,
@@ -889,6 +915,7 @@ export async function runTutoringPipeline(params: {
                 }
               : { success: false, reason: conceptStreamOutcome.reason };
         } else {
+          timing.markGenerationStart("Concept");
           conceptResult = await timing.measure("generationMs", async () =>
             explainConcept(conceptAgentContext, generateConceptExplanation),
           );
@@ -1165,6 +1192,7 @@ export async function runTutoringPipeline(params: {
         // `events.chunk`, and `signal` (request.signal, forwarded from
         // POST) lets a client-side Cancel actually stop the upstream
         // Anthropic call, not just stop rendering it.
+        timing.markGenerationStart("General");
         const llmResult = await timing.measure("generationMs", async () =>
           generateTeachingReplyStreaming(history, teachingGuidance, (delta) => events.chunk(delta), signal),
         );

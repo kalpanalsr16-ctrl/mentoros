@@ -31,6 +31,7 @@ const EVENT_AGENT_MAP: Record<string, string> = {
   message_rejected: "System",
   reply_failed: "System",
   reply_sent: "System",
+  response_done: "System",
   safety_reply_sent: "System",
   intent_detected: "Router",
   routing_failed: "Router",

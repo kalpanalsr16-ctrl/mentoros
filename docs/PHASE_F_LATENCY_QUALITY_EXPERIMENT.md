@@ -476,3 +476,52 @@ Analysis rules:
 **Observation scope:** this is one treatment turn. It is not a percentage latency improvement, and it must not be compared causally with historical Concept turns.
 
 **Limitation:** the response body was inspected after request completion. This verification proves server-side first-content availability and correct chunk emission. It does not independently measure browser or network arrival time, or paint time. Those remain unmeasured.
+
+---
+
+## Timing fields version 2 (C3 measurement, measurement only)
+
+Version 2 adds fields next to the existing `criticalPath` object. `criticalPathVersion` stays 1, because that object is unchanged. Turns written before this deploy have none of these fields. The deploy boundary is the first `reply_sent` or terminal event with `timingFieldsVersion: 2`. Analysis of pre-generation timing must restrict to those turns. Do not compare them with older turns.
+
+### Fields and boundaries
+
+| Field | Where | Boundary |
+|---|---|---|
+| `timingFieldsVersion` | `reply_sent`, `safety_reply_sent`, and terminal events once generation began | `2` |
+| `authMs` | same | From before `createClient()` to after `getClaims()` resolves. Outside the E1 clock. Never part of `preGenerationMs`, `replyCompletedMs`, `firstContentMs`, `wallClockMs`, or criticalPath reconciliation. |
+| `deployCommit` | same | `VERCEL_GIT_COMMIT_SHA`, or `null` outside Vercel |
+| `preGenerationMs` | `reply_sent`, and terminal events once generation began | `turnStartedAt` to the moment the final generation call is started. Recorded immediately before each `timing.measure("generationMs", …)` call. |
+| `generationAgent` | same | `Concept`, `Practice`, `Assessment`, or `General`. Concept treatment and control both use `Concept`. |
+| `preGenerationTelemetryWriteMs` | same | Sum of awaited telemetry writes that started before the generation boundary |
+| `postGenerationTelemetryWriteMs` | `reply_sent` / `safety_reply_sent` only | Sum of awaited telemetry writes that started after the boundary. Not on terminal events, because those writes are not all complete when the terminal event is written. |
+| `preGenerationResidualMs` | same as `preGenerationMs` | See the reconciliation rule below |
+| `responseDoneMs` | `response_done` event | `turnStartedAt` to immediately before the final `done` event is emitted |
+| `postReplyCompletionMs` | `response_done` event | `responseDoneMs − replyCompletedMs`. Includes the awaited `reply_sent` write. |
+
+### Terminal events
+
+Cancelled and failed turns keep their pre-generation timing, so the future baseline is not biased toward turns that reached `reply_sent`. These events carry the terminal fields (`timingFieldsVersion`, `authMs`, `deployCommit`, `preGenerationMs`, `generationAgent`, `preGenerationTelemetryWriteMs`, `preGenerationResidualMs`) only when generation began:
+
+- `turn_cancelled`, pipeline cancel branch
+- `turn_cancelled`, aborted exception branch
+- `reply_failed` with `assistant_message_save_failed`
+- `reply_failed` with `pipeline_exception`
+- `concept_explanation_failed`, streamed branch with displayed text (ends the turn)
+
+Not modified: `concept_explanation_failed` on the non-streamed branch. The turn continues to a saved fallback reply, which writes `reply_sent` with the full field set. Failures before generation carry no pre-generation fields.
+
+No new awaited write was added. Only existing payloads gained fields.
+
+### Reconciliation (sequential-span rule)
+
+Under `timingFieldsVersion` 2:
+
+    preGenerationResidualMs = preGenerationMs − (sum of measured pre-generation segment durations) − preGenerationTelemetryWriteMs
+
+This is valid only while pre-generation spans are sequential and non-overlapping, which holds today because every span is awaited in order. If future work introduces overlapping or concurrent spans, this formula must be versioned or redesigned, not reused. Also:
+
+- `preGenerationTelemetryWriteMs + postGenerationTelemetryWriteMs = criticalPath.telemetryWriteMs` on `reply_sent`.
+
+### response_done
+
+`response_done` is written with `after()`, after the stream response finishes. It is not on the learner path and adds no awaited write. Its absence does not prove that the server or client did not emit `done`, because the asynchronous write itself can fail or be dropped.
