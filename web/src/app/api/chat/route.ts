@@ -52,6 +52,13 @@ import type { PlanningContext } from "@/lib/agents/planning-context";
 import type { ReplyKind, MasteryUpdatePayload, MessageRow } from "@/lib/chat/types";
 import { createStreamingEventBuilder, type StreamingEventBuilder } from "@/lib/chat/streaming-event-builder";
 import { scheduleDeferredEvaluation } from "@/lib/evaluation/schedule-deferred-evaluation";
+import { streamConceptExplanation, type ConceptStreamFailureReason, type ConceptStreamOutcome } from "@/lib/llm/concept-explanation-stream";
+import {
+  assignConceptStreamingArm,
+  isEligibleForConceptStreaming,
+  readTreatmentPercent,
+  type ConceptStreamingArm,
+} from "@/lib/chat/concept-streaming-experiment";
 import type { EvaluationRequest } from "@/lib/evaluation/run-evaluation";
 import {
   createFirstContentTracker,
@@ -274,10 +281,20 @@ export async function POST(request: Request) {
     }
   }
 
+  const conceptStreamingArm = assignConceptStreamingArm({
+    traceId,
+    eligible: isEligibleForConceptStreaming({ modality, isRetry, source }),
+    treatmentPercent: readTreatmentPercent(process.env),
+  });
+
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const streamEvents = createStreamingEventBuilder(controller);
       const firstContent = createFirstContentTracker(elapsedMs);
+      const conceptChunk = (text: string) => {
+        firstContent.recordTextDelta(text, "concept_explanation_char");
+        streamEvents.chunk(text);
+      };
       const events: StreamingEventBuilder = {
         ...streamEvents,
         chunk(text: string) {
@@ -300,11 +317,13 @@ export async function POST(request: Request) {
           learnerProfileWriter,
           signal: request.signal,
           timing,
+          conceptStreamingArm,
+          onConceptText: conceptChunk,
         });
 
-        if (pipelineResult.deferredEvaluation) {
-          const evaluation = pipelineResult.deferredEvaluation;
-          scheduleDeferredEvaluation(supabase, evaluation);
+        if (pipelineResult.conceptStreamFailure) {
+          events.error("I couldn't finish that explanation. Please try again.");
+          return;
         }
 
         if (pipelineResult.cancelled) {
@@ -379,6 +398,8 @@ export async function POST(request: Request) {
               firstContentMs: firstContent.value(),
             }),
             ...timing.criticalPathFields(replyCompletedMs),
+            conceptStreamingArm,
+            ...(firstContent.source() ? { firstContentSource: firstContent.source() } : {}),
             ...pipelineResult.llmMetadata,
           },
         });
@@ -399,6 +420,10 @@ export async function POST(request: Request) {
             : {}),
           ...(pipelineResult.masteryUpdatePayload ? { masteryUpdate: pipelineResult.masteryUpdatePayload } : {}),
         });
+
+        if (pipelineResult.deferredEvaluation) {
+          scheduleDeferredEvaluation(supabase, pipelineResult.deferredEvaluation);
+        }
       } catch (err) {
         if (request.signal.aborted) {
           await logEvent(supabase, {
@@ -455,6 +480,9 @@ type PipelineResult = {
   cancelled?: boolean;
   // Evaluation runs after the reply is sent, so it never delays the student.
   deferredEvaluation?: EvaluationRequest;
+  // A streamed Concept attempt failed after learner-visible text was shown.
+  // Nothing is persisted or evaluated, and no second answer is generated.
+  conceptStreamFailure?: { reason: ConceptStreamFailureReason; displayedChars: number };
 };
 
 
@@ -483,6 +511,8 @@ export async function runTutoringPipeline(params: {
   learnerProfileWriter: ReturnType<typeof createPostgresLearnerProfileWriter>;
   signal: AbortSignal;
   timing: TurnTiming;
+  conceptStreamingArm?: ConceptStreamingArm;
+  onConceptText?: (text: string) => void;
 }): Promise<PipelineResult> {
   const {
     supabase,
@@ -497,6 +527,8 @@ export async function runTutoringPipeline(params: {
     learnerProfileWriter,
     signal,
     timing,
+    conceptStreamingArm = "ineligible",
+    onConceptText,
   } = params;
 
   const logTimed = (eventParams: Parameters<typeof logEvent>[1]) => timing.telemetry(() => logEvent(supabase, eventParams));
@@ -794,6 +826,7 @@ export async function runTutoringPipeline(params: {
       // incomplete: ask diagnostic questions"), Diagnostic means diagnose,
       // not teach.
       let conceptResult: ConceptAgentResult | undefined;
+      let conceptStreamOutcome: ConceptStreamOutcome | undefined;
       if (
         !practiceResult &&
         !assessmentResult &&
@@ -811,9 +844,55 @@ export async function runTutoringPipeline(params: {
           personalizationProfile: profile,
           history,
         };
-        conceptResult = await timing.measure("generationMs", async () =>
-          explainConcept(conceptAgentContext, generateConceptExplanation),
-        );
+        if (conceptStreamingArm === "treatment" && onConceptText) {
+          const streamText = onConceptText;
+          conceptStreamOutcome = await timing.measure("generationMs", async () =>
+            streamConceptExplanation(conceptAgentContext, { onDisplayText: streamText, signal }),
+          );
+          if (conceptStreamOutcome.kind === "cancelled") {
+            return { replyContent: "", replyKind, llmMetadata, safe: safetyAssessment.safe, cancelled: true };
+          }
+          if (conceptStreamOutcome.kind === "failed" && conceptStreamOutcome.shownPartial) {
+            await logTimed({
+              traceId,
+              eventName: "concept_explanation_failed",
+              studentId,
+              conversationId: activeConversationId,
+              payload: {
+                reason: conceptStreamOutcome.reason,
+                shownPartial: true,
+                displayedChars: conceptStreamOutcome.displayedChars,
+                conceptStreaming: 1,
+                conceptStreamingArm,
+                latencyMs: Date.now() - llmStartedAt,
+              },
+            });
+            return {
+              replyContent: "",
+              replyKind,
+              llmMetadata,
+              safe: safetyAssessment.safe,
+              conceptStreamFailure: {
+                reason: conceptStreamOutcome.reason,
+                displayedChars: conceptStreamOutcome.displayedChars,
+              },
+            };
+          }
+          conceptResult =
+            conceptStreamOutcome.kind === "completed"
+              ? {
+                  success: true,
+                  response: conceptStreamOutcome.response,
+                  model: conceptStreamOutcome.model,
+                  inputTokens: conceptStreamOutcome.inputTokens,
+                  outputTokens: conceptStreamOutcome.outputTokens,
+                }
+              : { success: false, reason: conceptStreamOutcome.reason };
+        } else {
+          conceptResult = await timing.measure("generationMs", async () =>
+            explainConcept(conceptAgentContext, generateConceptExplanation),
+          );
+        }
       }
 
       const llmLatencyMs = Date.now() - llmStartedAt;
@@ -1012,6 +1091,18 @@ export async function runTutoringPipeline(params: {
             outputTokens: conceptResult.outputTokens,
             estimatedCostUsd: estimateCostUsd(conceptResult.inputTokens, conceptResult.outputTokens),
             latencyMs: llmLatencyMs,
+            conceptStreaming: 1,
+            conceptStreamingArm,
+            streamed: conceptStreamOutcome !== undefined,
+            streamOutcome: conceptStreamOutcome ? "completed" : "not_streamed",
+            ...(conceptStreamOutcome?.kind === "completed"
+              ? {
+                  modelFirstDeltaMs: conceptStreamOutcome.timings.modelFirstDeltaMs,
+                  firstExplanationCharMs: conceptStreamOutcome.timings.firstExplanationCharMs,
+                  finalValidationMs: conceptStreamOutcome.timings.finalValidationMs,
+                  displayedChars: conceptStreamOutcome.displayedChars,
+                }
+              : {}),
           },
         });
 
@@ -1058,7 +1149,14 @@ export async function runTutoringPipeline(params: {
             eventName: "concept_explanation_failed",
             studentId,
             conversationId: activeConversationId,
-            payload: { reason: conceptResult.reason, latencyMs: llmLatencyMs },
+            payload: {
+              reason: conceptResult.reason,
+              latencyMs: llmLatencyMs,
+              shownPartial: false,
+              conceptStreaming: 1,
+              conceptStreamingArm,
+              streamed: conceptStreamOutcome !== undefined,
+            },
           });
         }
 

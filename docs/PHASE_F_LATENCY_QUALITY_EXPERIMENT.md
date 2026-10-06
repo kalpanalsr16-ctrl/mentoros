@@ -411,3 +411,50 @@ Evaluation may still execute after client cancellation, because cancellation doe
 
 - Flight Recorder and transparency panel show no wall-clock for Concept, Practice, and Assessment turns after C1. The transparency panel falls back to the stage sum. Flight Recorder shows a dash.
 - The Evaluation stage for those turns may appear after the reply in the trace view.
+
+---
+
+## Implementation: C2 progressive Concept streaming (behind a server-controlled flag)
+
+### Scope and assignment
+
+- Applies to typed-text Concept turns only. Voice, retries, and automatic AI Tutor requests stay on the existing non-streamed path. General streaming is unchanged.
+- Arm assignment is server-side: FNV-1a hash of the trace ID, reduced to 0–99, compared with `CONCEPT_STREAMING_TREATMENT_PERCENT` (server environment variable, default `0`, clamped to 0–100). The client cannot toggle it.
+- At 0%, every eligible turn is `control`, so the existing `explainConcept` path is used.
+- Production state: the variable is not set, so the effective treatment share is 0%. Treatment has not been enabled in production.
+- The final validated response remains canonical. Evaluation is scheduled only after the reply is persisted and `done` is sent.
+
+### Failure contract
+
+- A failure before any displayed text falls back to the existing Concept path.
+- A failure after displayed text (`shownPartial`) ends with a retryable error. Nothing is persisted, and Evaluation is not scheduled.
+- Displayed text is reconciled with the canonical formatted reply. A mismatch is a failure.
+
+### Verification
+
+- Unit and wiring tests: extractor (every split point, randomized splits, malformed and duplicate-key input), stream outcomes, arm assignment, Evaluation ordering, persistence-failure ordering, schema and model drift against `llm/client.ts`.
+- Live treatment verification: one paid typed-text Concept turn through the real `/api/chat` route on the current working tree, with the treatment share forced to 100% through the server environment for that run only. The configuration was removed afterwards. No other paid turn was run. The golden benchmark was not run.
+
+| Field | Value |
+|---|---|
+| Trace | `9dcc4fbd-37f0-47cf-a2c4-eb2b887294dc` |
+| Arm | `treatment` |
+| Modality | `text` |
+| firstContentMs | 10,635 |
+| firstContentSource | `concept_explanation_char` |
+| replyCompletedMs | 16,768 |
+| Progressive-display head start | 6,133 ms |
+| generationMs | 7,634 |
+| modelFirstDeltaMs | 1,529 |
+| firstExplanationCharMs | 1,971 |
+| displayedChars | 1,015 |
+| streamOutcome | `completed` |
+| Critical-path residual | 6 ms |
+
+**Reconciliation:** the streamed learner-facing text, the canonical formatted reply, and the persisted assistant message are an exact match (1,015 characters). The rendered page contains the persisted text's head and tail, with no JSON syntax.
+
+**Ordering:** `concept_explained`, then persistence and `reply_sent` (with `firstContentMs` and `replyCompletedMs`), then `evaluation_completed`. Evaluation ran once, after successful persistence.
+
+**Observation scope:** this is one treatment turn. It is not a percentage latency improvement, and it must not be compared causally with historical Concept turns.
+
+**Limitation:** the response body was inspected after request completion. This verification proves server-side first-content availability and correct chunk emission. It does not independently measure browser or network arrival time, or paint time. Those remain unmeasured.

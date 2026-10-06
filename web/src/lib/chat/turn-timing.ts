@@ -4,21 +4,31 @@
  * See docs/PHASE_E_ARCHITECTURE_PERFORMANCE.md (E1) and
  * docs/PHASE_F_LATENCY_QUALITY_EXPERIMENT.md (measurement contract).
  */
+export type FirstContentSource = "general_chunk" | "concept_explanation_char" | "saved_reply";
+
 export function createFirstContentTracker(elapsedMs: () => number) {
   let firstContentMs: number | null = null;
+  let firstContentSource: FirstContentSource | null = null;
   return {
     /** A streamed text delta the student can see. Empty deltas do not count. */
-    recordTextDelta(text: string): void {
-      if (firstContentMs === null && text.length > 0) firstContentMs = elapsedMs();
+    recordTextDelta(text: string, source: FirstContentSource = "general_chunk"): void {
+      if (firstContentMs === null && text.length > 0) {
+        firstContentMs = elapsedMs();
+        firstContentSource = source;
+      }
     },
     /**
      * A complete, non-streamed model reply. It becomes visible when it is
      * saved, so first content and reply completion coincide for these turns.
      */
     recordCompleteReply(replyCompletedMs: number): void {
-      if (firstContentMs === null) firstContentMs = replyCompletedMs;
+      if (firstContentMs === null) {
+        firstContentMs = replyCompletedMs;
+        firstContentSource = "saved_reply";
+      }
     },
     value: (): number | null => firstContentMs,
+    source: (): FirstContentSource | null => firstContentSource,
   };
 }
 
