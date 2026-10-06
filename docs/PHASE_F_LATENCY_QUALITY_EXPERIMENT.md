@@ -421,8 +421,26 @@ Evaluation may still execute after client cancellation, because cancellation doe
 - Applies to typed-text Concept turns only. Voice, retries, and automatic AI Tutor requests stay on the existing non-streamed path. General streaming is unchanged.
 - Arm assignment is server-side: FNV-1a hash of the trace ID, reduced to 0–99, compared with `CONCEPT_STREAMING_TREATMENT_PERCENT` (server environment variable, default `0`, clamped to 0–100). The client cannot toggle it.
 - At 0%, every eligible turn is `control`, so the existing `explainConcept` path is used.
-- Production state: the variable is not set, so the effective treatment share is 0%. Treatment has not been enabled in production.
 - The final validated response remains canonical. Evaluation is scheduled only after the reply is persisted and `done` is sent.
+
+### Experiment state
+
+| Item | State |
+|---|---|
+| Implementation | Complete (commit `49a4d6d`) |
+| Technical verification | Passed (tests, live treatment turn, reconciliation) |
+| Production deployment | Live |
+| Production allocation | `CONCEPT_STREAMING_TREATMENT_PERCENT=10`: about 10% treatment, about 90% control, for eligible typed Concept turns |
+| Experiment conclusion | Pending |
+
+Analysis rules:
+
+- CONTROL and TREATMENT are compared contemporaneously over the same window. Historical single turns are never the control.
+- Eligible population: routed Concept, `modality=text`, not a retry, no source (not tutor-auto), ordinary production traffic.
+- Primary metric: `firstContentMs`. Secondary: `replyCompletedMs`, `generationMs`, `modelFirstDeltaMs` and `firstExplanationCharMs` (treatment only), and progressive-display head start = `replyCompletedMs - firstContentMs`.
+- Guardrails: reconciliation mismatches, streaming failures, validation failures, `shownPartial` failures, cancellations, duplicate assistant messages, persistence failures, Evaluation ordering and missing Evaluation, Safety and routing behaviour, and canonical-response consistency.
+- The verified 6,133 ms head start on one turn is not an experiment-level latency improvement. p50 and p90 are not reported as conclusions until sample sizes support them.
+- Readout contents: experiment window, control n, treatment n, `firstContentMs` / `replyCompletedMs` / `generationMs` distributions by arm, treatment head-start distribution, guardrail outcomes, confounders and outliers, and whether the evidence supports a conclusion.
 
 ### Failure contract
 
